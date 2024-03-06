@@ -6,6 +6,15 @@
 #include "GameFramework/Actor.h"
 #include "RuntimeLandscape.generated.h"
 
+class ALandscape;
+
+UENUM()
+enum class ELandscapeMode : uint8
+{
+	LM_HeightMap UMETA(DisplayName = "Height map"),
+	LM_CopyFromLandscape UMETA(DisplayName = "Copy from landscape")
+};
+
 class UProceduralMeshComponent;
 
 UCLASS()
@@ -18,6 +27,9 @@ public:
 	ARuntimeLandscape();
 
 protected:
+	UPROPERTY(EditAnywhere, Category = "Height data",
+		meta = (EditCondition="LandscapeMode == ELandscapeMode::LM_CopyFromLandscape", EditConditionHides))
+	TObjectPtr<ALandscape> LandscapeToCopyFrom;
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1))
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
@@ -25,9 +37,10 @@ protected:
 	//TODO: Ensure MeshResolution is a multiple of SectionAmount
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
 	FVector2D SectionAmount = FVector2D(2.0f, 2.0f);
+
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UProceduralMeshComponent> LandscapeMesh;
-	
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bEnableDebug;
@@ -40,6 +53,9 @@ protected:
 #endif
 
 	void PrepareHeightValues(TArray<float>& OutHeightValues) const;
+	void ReadHeightValuesFromLandscape(TArray<float>& OutHeightData) const;
+	void ReadHeightValuesFromHeightMap(TArray<FColor>& OutHeightColorData) const;
+	
 	virtual void BeginPlay() override;
 
 #if WITH_EDITOR
@@ -55,7 +71,7 @@ protected:
 	 * 15	16	17	18	19
 	 */
 	TArray<int32> GetSectionsInArea(const FBox2D& Area) const;
-	
+
 	/**
 	 * Get the grid coordinates of the 
 	 * @param SectionId				The id of the section
@@ -64,6 +80,7 @@ protected:
 	void GetSectionCoordinates(int32 SectionId, FIntVector2& OutCoordinateResult) const;
 
 	FBox2D GetSectionBounds(int32 SectionIndex) const;
+	FBox2D GetLandscapeBounds() const;
 	void GenerateMesh() const;
-	void GenerateSection(int32 SectionIndex) const;
+	void GenerateSections(const TArray<int32>& SectionsToGenerate) const;
 };

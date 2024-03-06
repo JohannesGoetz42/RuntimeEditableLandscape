@@ -28,7 +28,8 @@ public class RuntimeEditableLandscape : ModuleRules
 			new string[]
 			{
 				"Core",
-				"ProceduralMeshComponent"
+				"ProceduralMeshComponent",
+				"Landscape"
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
