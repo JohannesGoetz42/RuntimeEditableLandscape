@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "RuntimeEditableLandscape",
+	"Description": "A landscape that can be edited at runtime",
+	"Category": "Other",
+	"CreatedBy": "Johannes Goetz",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "RuntimeEditableLandscape",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
