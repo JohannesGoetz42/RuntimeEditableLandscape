@@ -48,10 +48,8 @@ public:
 	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild = true);
 
 protected:
-	UPROPERTY(EditAnywhere, Category = "Height data",
-		meta = (EditCondition="LandscapeMode == ELandscapeMode::LM_CopyFromLandscape", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Height data")
 	TObjectPtr<ALandscape> LandscapeToCopyFrom;
-
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1))
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
@@ -65,7 +63,7 @@ protected:
 	UPROPERTY(EditAnywhere)
 	TArray<FSectionData> Sections;
 
-#if WITH_EDITORONLY_DATA	
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bEnableDebug;
 	UPROPERTY(EditAnywhere, Category = "Debug")
@@ -107,7 +105,7 @@ protected:
 #endif
 
 	/**
-	 * Get the ids for the secions contained in the specified area
+	 * Get the ids for the sections contained in the specified area
 	 * Sections are numbered like this (i.e SectionAmount = 4x4):
 	 * 0	1	2	3	4
 	 * 5	6	7	8	9
@@ -125,12 +123,6 @@ protected:
 
 	FBox2D GetSectionBounds(int32 SectionIndex) const;
 
-	/** Get the amount of vertices in a single section */
-	int32 GetVertexAmountPerSection() const
-	{
-		return GetVertexAmountPerSectionRow() * GetVertexAmountPerSectionColumn();
-	}
-
 	/** Get the amount of vertices in a single section row */
 	FORCEINLINE int32 GetVertexAmountPerSectionRow() const { return MeshResolution.X / SectionAmount.X + 1; }
 	/** Get the amount of vertices in a single section column */
@@ -139,9 +131,63 @@ protected:
 	/** Get the size of a single section */
 	FORCEINLINE FVector2D GetSizePerSection() const { return LandscapeSize / SectionAmount; }
 
+	/**
+	 * Get the world location of a specified vertex
+	 * @param SectionIndex		The index of the section the vertex is contained in
+	 * @param VertexIndex		The index of the vertex
+	 */
+	FVector2D GetVertexLocation(int32 SectionIndex, int32 VertexIndex) const
+	{
+		return FVector2D(GetActorLocation()) + GetSectionLocation(SectionIndex) + GetRelativeLocationOfVertex(
+			VertexIndex);
+	}
+
+	/**
+	 * Get the start location of the specified section
+	 * @param SectionIndex		The index of the section
+	 */
+	FVector2D GetSectionLocation(int32 SectionIndex) const
+	{
+		FIntVector2 SectionCoordinates;
+		GetSectionCoordinates(SectionIndex, SectionCoordinates);
+
+		FVector2D SectionOffset = GetSizePerSection();
+		SectionOffset.X *= SectionCoordinates.X;
+		SectionOffset.Y *= SectionCoordinates.Y;
+		return FVector2D(GetActorLocation()) + SectionOffset;
+	}
+
+	/** Get the amount of vertices in a single section */
+	int32 GetVertexAmountPerSection() const
+	{
+		return GetVertexAmountPerSectionRow() * GetVertexAmountPerSectionColumn();
+	}
+
+	/**
+	 * Get the location of a specified vertex relative to it's section
+	 * @param VertexIndex		The index of the vertex
+	 */
+	FVector2D GetRelativeLocationOfVertex(int32 VertexIndex) const
+	{
+		const FIntVector2 VertexCoordinates = GetVertexCoordinatesInSection(VertexIndex);
+		const FVector2D VertexDistance = LandscapeSize / MeshResolution;
+		return FVector2D(VertexCoordinates.X * VertexDistance.X, VertexCoordinates.Y * VertexDistance.Y);
+	}
+
+	/**
+	 * Get the coordinates of a vertex within it's section
+	 * @param VertexIndex  The index of the vertex
+	 */
+	FIntVector2 GetVertexCoordinatesInSection(int32 VertexIndex) const
+	{
+		return FIntVector2(VertexIndex % GetVertexAmountPerSectionRow(),
+		                   FMath::FloorToInt(
+			                   static_cast<float>(VertexIndex) / static_cast<float>(GetVertexAmountPerSectionRow())));
+	}
+
 	void InitializeSections();
 	//FBox2D GetLandscapeBounds() const;
-	void GenerateDataFromLayers(FSectionData& Section, TArray<FColor>& OutVertexColors);
+	void GenerateDataFromLayers(FSectionData& Section, TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
 	void GenerateMesh();
 	/**
 	 * Generates the sections for the mesh

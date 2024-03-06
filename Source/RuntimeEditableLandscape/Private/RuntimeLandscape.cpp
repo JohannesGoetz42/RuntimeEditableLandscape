@@ -10,6 +10,7 @@
 ARuntimeLandscape::ARuntimeLandscape()
 {
 	LandscapeMesh = CreateDefaultSubobject<UProceduralMeshComponent>("Landscape mesh");
+	RootComponent = LandscapeMesh;
 }
 
 void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild)
@@ -101,9 +102,9 @@ bool ARuntimeLandscape::ReadHeightValuesFromLandscape()
 	// SampleError.X -= SampleInterval.X;
 	// SampleError.Y -= SampleInterval.Y;
 
-	UE_LOG(LogTemp, Display, TEXT("#"));
-	UE_LOG(LogTemp, Display, TEXT("#"));
-	UE_LOG(LogTemp, Display, TEXT("IntMAX: %i"), INT32_MAX);
+	// UE_LOG(LogTemp, Display, TEXT("#"));
+	// UE_LOG(LogTemp, Display, TEXT("#"));
+	// UE_LOG(LogTemp, Display, TEXT("IntMAX: %i"), INT32_MAX);
 	for (FSectionData& Section : Sections)
 	{
 		FIntVector2 SectionCoordinates;
@@ -279,21 +280,29 @@ void ARuntimeLandscape::InitializeSections()
 	}
 }
 
-void ARuntimeLandscape::GenerateDataFromLayers(FSectionData& Section, TArray<FColor>& OutVertexColors)
+void ARuntimeLandscape::GenerateDataFromLayers(FSectionData& Section, TArray<float>& OutHeightValues,
+                                               TArray<FColor>& OutVertexColors)
 {
+	check(OutHeightValues.Num() == Section.HeightValues.Num());
+
+	OutVertexColors.Init(FColor::White, Section.HeightValues.Num());
 	for (const ULandscapeLayerComponent* Layer : Section.AffectingLayers)
 	{
-		if (Layer->LayerData.bApplyHeight)
+		for (int32 i = 0; i < Section.HeightValues.Num(); i++)
 		{
-			for (float& HeightValue : Section.HeightValues)
+			// check if the vertex is inside layer bounds			
+			if (Layer->GetAffectedArea().IsInside(GetVertexLocation(Section.SectionIndex, i)))
 			{
-				HeightValue = Layer->LayerData.HeightValue;
-			}
-		}
+				if (Layer->LayerData.bApplyHeight)
+				{
+					OutHeightValues[i] = Layer->LayerData.HeightValue;
+				}
 
-		if (Layer->LayerData.bApplyVertexColor)
-		{
-			OutVertexColors.Init(Layer->LayerData.VertexColor, Section.HeightValues.Num());
+				if (Layer->LayerData.bApplyVertexColor)
+				{
+					OutVertexColors[i] = Layer->LayerData.VertexColor;
+				}
+			}
 		}
 	}
 }
@@ -329,8 +338,10 @@ void ARuntimeLandscape::GenerateSections(bool bFullRebuild)
 		const TArray<FVector> Normals;
 		const TArray<FVector2D> UV0;
 		const TArray<FProcMeshTangent> Tangents;
+		TArray<float> HeightValues = Section.HeightValues;
 		TArray<FColor> VertexColors;
-		GenerateDataFromLayers(Section, VertexColors);
+
+		GenerateDataFromLayers(Section, HeightValues, VertexColors);
 
 		const FVector2D SectionOffset = GetSectionBounds(Section.SectionIndex).Min;
 		TArray<FVector> Vertices;
@@ -344,7 +355,7 @@ void ARuntimeLandscape::GenerateSections(bool bFullRebuild)
 		for (int32 X = 0; X <= SectionResolution.X; X++)
 		{
 			Vertices.Add(FVector(X * VertexDistance.X + SectionOffset.X, SectionOffset.Y,
-			                     Section.HeightValues[VertexIndex]));
+			                     HeightValues[VertexIndex]));
 			VertexIndex++;
 		}
 
@@ -352,7 +363,7 @@ void ARuntimeLandscape::GenerateSections(bool bFullRebuild)
 		{
 			const float Y1 = Y + 1;
 			Vertices.Add(FVector(SectionOffset.X, Y1 * VertexDistance.Y + SectionOffset.Y,
-			                     Section.HeightValues[VertexIndex]));
+			                     HeightValues[VertexIndex]));
 			VertexIndex++;
 
 			// generate triangle strip in X direction
@@ -360,7 +371,7 @@ void ARuntimeLandscape::GenerateSections(bool bFullRebuild)
 			{
 				Vertices.Add(FVector((X + 1) * VertexDistance.X + SectionOffset.X,
 				                     Y1 * VertexDistance.Y + SectionOffset.Y,
-				                     Section.HeightValues[VertexIndex]));
+				                     HeightValues[VertexIndex]));
 				VertexIndex++;
 
 				int32 T1 = Y * (SectionResolution.X + 1) + X;
