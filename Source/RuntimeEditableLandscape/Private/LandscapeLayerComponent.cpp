@@ -54,6 +54,43 @@ void ULandscapeLayerComponent::ApplyLayerData(const FVector2D VertexLocation, fl
 	}
 }
 
+FBox2D ULandscapeLayerComponent::GetAffectedArea(bool bIncludeSmoothing) const
+{
+	FVector Origin;
+	FVector Extent;
+	if (LayerData.BoundsOverride)
+	{
+		Origin = LayerData.BoundsOverride->GetComponentLocation();
+		Extent = LayerData.BoundsOverride->Bounds.BoxExtent;
+	}
+	else
+	{
+		GetOwner()->GetActorBounds(false, Origin, Extent);
+	}
+
+	float SmoothingOffset = 0;
+	if (bIncludeSmoothing)
+	{
+		if (LayerData.SmoothingDirection != ESmoothingDirection::SD_Inwards)
+		{
+			SmoothingOffset = LayerData.SmoothingDistance;
+		}
+	}
+	else if (LayerData.SmoothingDirection != ESmoothingDirection::SD_Outwards)
+	{
+		SmoothingOffset = -LayerData.SmoothingDistance;
+	}
+
+	if (LayerData.SmoothingDirection == SD_Center)
+	{
+		SmoothingOffset *= 0.5f;
+	}
+
+	return FBox2D(
+		FVector2D(Origin.X - Extent.X - SmoothingOffset, Origin.Y - Extent.Y - SmoothingOffset),
+		FVector2D(Origin.X + Extent.X + SmoothingOffset, Origin.Y + Extent.Y + SmoothingOffset));
+}
+
 // Called when the game starts
 void ULandscapeLayerComponent::BeginPlay()
 {

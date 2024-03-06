@@ -9,12 +9,23 @@
 
 class ARuntimeLandscape;
 
+UENUM()
+enum ESmoothingDirection
+{
+	SD_Inwards UMETA(DisplayName = "Inwards"),
+	SD_Outwards UMETA(DisplayName = "Outwards"),
+	SD_Center UMETA(DisplayName = "Center")
+};
+
 USTRUCT()
 struct FLandscapeLayerData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 0.0f))
+	UPROPERTY(EditAnywhere, Category = "Smoothing", meta = (ClampMin = 0.0f))
+	/** Whether smoothing is applied inwards or outwards*/
+	TEnumAsByte<ESmoothingDirection> SmoothingDirection = SD_Inwards;
+	UPROPERTY(EditAnywhere, Category = "Smoothing", meta = (ClampMin = 0.0f))
 	/** The distance in which the layer effect fades out (extends the Owner's bounds) */
 	float SmoothingDistance = 200.0f;
 	UPROPERTY(EditAnywhere)
@@ -28,6 +39,9 @@ struct FLandscapeLayerData
 	UPROPERTY(EditAnywhere)
 	/** Custom tags that can be applied to the landscape for querying (i.E. fertility) */
 	TArray<FName> LandscapeTags;
+	UPROPERTY()
+	/** Optional component that overrides the bounds for the affected area */
+	TObjectPtr<UPrimitiveComponent> BoundsOverride;
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
@@ -42,26 +56,13 @@ public:
 	UPROPERTY(EditAnywhere)
 	FLandscapeLayerData LayerData;
 
+	FORCEINLINE const TArray<FName>& GetLandscapeTags() const { return LayerData.LandscapeTags; }
+
+	/** Get the affected area */
+	FBox2D GetAffectedArea(bool bIncludeSmoothing) const;
+
 	void ApplyToLandscape() const;
 	void ApplyLayerData(const FVector2D VertexLocation, float& OutHeightValue, FColor& OutVertexColorValue) const;
-	const TArray<FName>& GetLandscapeTags() const { return LayerData.LandscapeTags; }
-
-	FBox2D GetAffectedArea(bool bIncludeSmoothedArea) const
-	{
-		FVector Origin;
-		FVector Extent;
-		GetOwner()->GetActorBounds(false, Origin, Extent);
-		FBox2D Result(FVector2D(Origin.X - Extent.X, Origin.Y - Extent.Y) - FVector2D(LayerData.SmoothingDistance),
-		              FVector2D(Origin.X + Extent.X, Origin.Y + Extent.Y) + FVector2D(LayerData.SmoothingDistance));
-
-		if (bIncludeSmoothedArea)
-		{
-			Result.Min -= FVector2D(LayerData.SmoothingDistance);
-			Result.Max += FVector2D(LayerData.SmoothingDistance);
-		}
-
-		return Result;
-	}
 
 protected:
 	virtual void BeginPlay() override;

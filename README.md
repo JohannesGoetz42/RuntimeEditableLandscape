@@ -33,6 +33,7 @@ At the moment this plugin is still in prototyping phase. There is some functiona
 * Use Landscape layer data
 * Adjust foliage
 * Optimize Performance
+    * Multithreading!
 * Clean up code
 
 ### Known issues
