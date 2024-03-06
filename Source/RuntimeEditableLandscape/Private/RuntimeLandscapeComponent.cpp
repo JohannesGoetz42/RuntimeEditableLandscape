@@ -3,6 +3,7 @@
 
 #include "RuntimeLandscapeComponent.h"
 
+#include "KismetProceduralMeshLibrary.h"
 #include "LandscapeLayerComponent.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscape.h"
@@ -61,10 +62,10 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 
 	const FVector2D SectionResolution = ParentLandscape->GetMeshResolution() / ParentLandscape->
 		GetComponentAmount();
-	const TArray<FVector> Normals;
+	TArray<FVector> Normals;
 	TArray<FVector2D> UV0;
 	UV0.Reserve(VertexAmount);
-	const TArray<FProcMeshTangent> Tangents;
+	TArray<FProcMeshTangent> Tangents;
 	TArray<float> HeightValues = InitialHeightValues;
 	TArray<FColor> VertexColors;
 
@@ -153,6 +154,7 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 	}
 #endif
 
+	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0, Normals, Tangents);
 	CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, bUpdateCollision);
 	bIsStale = false;
 }

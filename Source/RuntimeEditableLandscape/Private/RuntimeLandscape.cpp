@@ -12,6 +12,15 @@
 ARuntimeLandscape::ARuntimeLandscape()
 {
 	RootComponent = CreateDefaultSubobject<USceneComponent>("Root component");
+
+#if WITH_EDITORONLY_DATA
+	const ConstructorHelpers::FObjectFinder<UMaterial> DebugMaterialFinder(
+		TEXT("Material'/RuntimeEditableLandscape/M_DebugMaterial.M_DebugMaterial'"));
+	if (ensure(DebugMaterialFinder.Succeeded()))
+	{
+		DebugMaterial = DebugMaterialFinder.Object;
+	}
+#endif
 }
 
 void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild)
@@ -156,6 +165,10 @@ void ARuntimeLandscape::InitializeFromLandscape()
 		}
 	}
 
+	BodyInstance = FBodyInstance();
+	BodyInstance.CopyBodyInstancePropertiesFrom(&ParentLandscape->BodyInstance);
+	bGenerateOverlapEvents = ParentLandscape->bGenerateOverlapEvents;
+
 	// create landscape components
 	LandscapeComponents.SetNumUninitialized(ParentLandscape->CollisionComponents.Num());
 	const int32 VertexAmountPerSection = GetTotalVertexAmountPerComponent();
@@ -171,10 +184,14 @@ void ARuntimeLandscape::InitializeFromLandscape()
 		}
 
 		URuntimeLandscapeComponent* LandscapeComponent = NewObject<URuntimeLandscapeComponent>(this);
-		LandscapeComponent->RegisterComponent();
 		LandscapeComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		LandscapeComponent->SetWorldLocation(LandscapeCollision->GetComponentLocation());
 		LandscapeComponent->SetMaterial(0, LandscapeMaterial);
+		LandscapeComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
+
+		LandscapeComponent->BodyInstance = FBodyInstance();
+		LandscapeComponent->BodyInstance.CopyBodyInstancePropertiesFrom(&ParentLandscape->BodyInstance);
+		LandscapeComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
 
 		// calculate index by position for more efficient access later
 		const FVector StartLocation = ParentOrigin - ParentExtent;
@@ -183,6 +200,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 			ComponentAmount.X;
 
 		LandscapeComponent->Initialize(ComponentIndex, HeightValues);
+		LandscapeComponent->RegisterComponent();
 		LandscapeComponents[ComponentIndex] = LandscapeComponent;
 	}
 
@@ -193,9 +211,46 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	}
 }
 
+void ARuntimeLandscape::PreInitializeComponents()
+{
+	Super::PreInitializeComponents();
+	if (IsValid(ParentLandscape))
+	{
+		ParentLandscape->Destroy();
+	}
+}
+
 void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);	
-	InitializeFromLandscape();
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	if (PropertyChangedEvent.MemberProperty->GetName() == FName("ParentLandscape"))
+	{
+		InitializeFromLandscape();
+	}
+
+	if (PropertyChangedEvent.MemberProperty->GetName() == FName("bGenerateOverlapEvents"))
+	{
+		for (URuntimeLandscapeComponent* Component : LandscapeComponents)
+		{
+			Component->SetGenerateOverlapEvents(bGenerateOverlapEvents);
+		}
+	}
+	if (PropertyChangedEvent.MemberProperty->GetName() == FName("LandscapeMaterial"))
+	{
+		for (URuntimeLandscapeComponent* Component : LandscapeComponents)
+		{
+			Component->SetMaterial(0, LandscapeMaterial);
+		}
+	}
+	if (PropertyChangedEvent.MemberProperty->GetName() == FName("BodyInstance") || PropertyChangedEvent.MemberProperty->
+		GetName() == FName("bGenerateOverlapEvents"))
+	{
+		for (URuntimeLandscapeComponent* Component : LandscapeComponents)
+		{
+			Component->BodyInstance = FBodyInstance();
+			Component->BodyInstance.CopyBodyInstancePropertiesFrom(&BodyInstance);
+			Component->SetGenerateOverlapEvents(bGenerateOverlapEvents);
+		}
+	}
 }
 #endif

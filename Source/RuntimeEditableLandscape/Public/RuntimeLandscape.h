@@ -21,6 +21,11 @@ public:
 	// Sets default values for this actor's properties
 	ARuntimeLandscape();
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Collision, meta=(ShowOnlyInnerProperties))
+	FBodyInstance BodyInstance;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Collision)
+	uint32 bGenerateOverlapEvents : 1;
+	
 	/**
 	 * Adds a new layer to the landscape
 	 * @param LayerToAdd The added landscape layer
@@ -88,7 +93,7 @@ protected:
 	int32 HeightValueBits = 7;
 	UPROPERTY()
 	float HeightScale = 1.0f;
-	UPROPERTY(EditAnywhere)
+	UPROPERTY()
 	/** The side length of a single component in units (components are always squares) */
 	float ComponentSize;
 	UPROPERTY()
@@ -103,13 +108,13 @@ protected:
 
 	void RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bool bForceRebuild = true);
 
-	void InitializeFromLandscape();
 
 #if WITH_EDITORONLY_DATA
+
 public:
-	UPROPERTY(EditAnywhere, Category = "Height data")
+	UPROPERTY(EditAnywhere)
 	TObjectPtr<ALandscape> ParentLandscape;
-	
+
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UMaterialInterface> LandscapeMaterial;
 	UPROPERTY(EditAnywhere, Category = "Debug")
@@ -124,9 +129,9 @@ public:
 	FColor DebugColor2 = FColor::Emerald;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> DebugMaterial;
-	UPROPERTY(EditAnywhere, Category = "Debug")
-	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
 
+	void InitializeFromLandscape();
+	virtual void PreInitializeComponents() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 };

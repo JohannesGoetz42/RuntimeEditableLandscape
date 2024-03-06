@@ -24,6 +24,13 @@ At the moment this plugin is still in prototyping phase. There is some functiona
 ### TODOs
 
 * Copy material from original landscape
+* Update navmesh
+* Add holes
+* Use Landscape layer data
 * Adjust foliage
 * Optimize Performance
 * Clean up code
+
+### Known issues
+
+* Remove parent landscape asap in pie
