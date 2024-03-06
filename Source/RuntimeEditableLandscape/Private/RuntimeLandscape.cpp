@@ -5,6 +5,7 @@
 
 #include "Landscape.h"
 #include "LandscapeLayerComponent.h"
+#include "RuntimeEditableLandscape.h"
 #include "Chaos/HeightField.h"
 
 ARuntimeLandscape::ARuntimeLandscape()
@@ -17,7 +18,7 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 	SCOPE_CYCLE_COUNTER(STAT_AddLandscapeLayer);
 	if (ensure(LayerToAdd))
 	{
-		for (const int32 AffectedSectionIndex : GetComponentsInArea(LayerToAdd->GetAffectedArea()))
+		for (const int32 AffectedSectionIndex : GetComponentsInArea(LayerToAdd->GetAffectedArea(true)))
 		{
 			LandscapeComponents[AffectedSectionIndex]->AddLandscapeLayer(LayerToAdd, bForceRebuild);
 		}

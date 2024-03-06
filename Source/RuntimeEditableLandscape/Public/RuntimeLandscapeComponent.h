@@ -52,5 +52,5 @@ protected:
 	bool bIsStale;
 
 	void Rebuild(bool bUpdateCollision = true);
-	void GenerateDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
+	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
 };

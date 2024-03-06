@@ -49,7 +49,7 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 	TArray<float> HeightValues = InitialHeightValues;
 	TArray<FColor> VertexColors;
 
-	GenerateDataFromLayers(HeightValues, VertexColors);
+	ApplyDataFromLayers(HeightValues, VertexColors);
 
 	TArray<FVector> Vertices;
 	Vertices.Reserve(VertexAmount);
@@ -110,7 +110,7 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 			ParentLandscape->GetComponentCoordinates(Index, SectionCoordinates);
 			const bool bIsEvenRow = SectionCoordinates.Y % 2 == 0;
 			const bool bIsEvenColumn = SectionCoordinates.X % 2 == 0;
-			const FColor SectionColor = bIsEvenColumn && bIsEvenRow || !bIsEvenColumn && !bIsEvenRow
+			const FColor SectionColor = (bIsEvenColumn && bIsEvenRow) || !(bIsEvenColumn && bIsEvenRow)
 				                            ? ParentLandscape->DebugColor1
 				                            : ParentLandscape->DebugColor2;
 			VertexColors.Init(SectionColor, Vertices.Num());
@@ -122,7 +122,7 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 	bIsStale = false;
 }
 
-void URuntimeLandscapeComponent::GenerateDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors)
+void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors)
 {
 	check(OutHeightValues.Num() == InitialHeightValues.Num());
 
@@ -131,19 +131,7 @@ void URuntimeLandscapeComponent::GenerateDataFromLayers(TArray<float>& OutHeight
 	{
 		for (int32 i = 0; i < InitialHeightValues.Num(); i++)
 		{
-			// check if the vertex is inside layer bounds			
-			if (Layer->GetAffectedArea().IsInside(ParentLandscape->GetVertexLocation(Index, i)))
-			{
-				if (Layer->LayerData.bApplyHeight)
-				{
-					OutHeightValues[i] = Layer->LayerData.HeightValue;
-				}
-
-				if (Layer->LayerData.bApplyVertexColor)
-				{
-					OutVertexColors[i] = Layer->LayerData.VertexColor;
-				}
-			}
+			Layer->ApplyLayerData(ParentLandscape->GetVertexLocation(Index, i), OutHeightValues[i], OutVertexColors[i]);
 		}
 	}
 }

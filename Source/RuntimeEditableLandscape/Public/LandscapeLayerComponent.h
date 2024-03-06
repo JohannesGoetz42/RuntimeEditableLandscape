@@ -14,8 +14,9 @@ struct FLandscapeLayerData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere)
-	FVector2D LayerSize = FVector2D::Zero();
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0.0f))
+	/** The distance in which the layer effect fades out (extends the Owner's bounds) */
+	float SmoothingDistance = 200.0f;
 	UPROPERTY(EditAnywhere)
 	bool bApplyHeight = false;
 	UPROPERTY(EditAnywhere)
@@ -33,23 +34,32 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeLayerComponent : public UActorCompo
 
 public:
 	void ApplyToLandscape() const;
+	void ApplyLayerData(const FVector2D VertexLocation, float& OutHeightValue, FColor& OutVertexColorValue) const;
 
-	FBox2D GetAffectedArea() const
+	FBox2D GetAffectedArea(bool bIncludeSmoothedArea) const
 	{
 		FVector Origin;
 		FVector Extent;
 		GetOwner()->GetActorBounds(false, Origin, Extent);
-		return FBox2D(FVector2D(Origin.X - Extent.X, Origin.Y - Extent.Y),
-		              FVector2D(Origin.X + Extent.X, Origin.Y + Extent.Y));
+		FBox2D Result(FVector2D(Origin.X - Extent.X, Origin.Y - Extent.Y) - FVector2D(LayerData.SmoothingDistance),
+		              FVector2D(Origin.X + Extent.X, Origin.Y + Extent.Y) + FVector2D(LayerData.SmoothingDistance));
+		
+		if (bIncludeSmoothedArea)
+		{
+			Result.Min -= FVector2D(LayerData.SmoothingDistance);
+			Result.Max += FVector2D(LayerData.SmoothingDistance);
+		}
+
+		return Result;
 	}
 
+protected:
 	UPROPERTY(EditDefaultsOnly)
 	/** If true, the layer will be applied after apply to ApplyToLandscape(), otherwise it will be applied on construction */
 	bool bWaitForActivation;
 	UPROPERTY(EditAnywhere)
 	FLandscapeLayerData LayerData;
 
-protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 };
