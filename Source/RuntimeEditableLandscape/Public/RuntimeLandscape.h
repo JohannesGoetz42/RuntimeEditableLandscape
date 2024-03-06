@@ -19,13 +19,15 @@ public:
 
 protected:
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1))
-	FVector2D LandscapeSize = FVector2D(100, 100);
+	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
-	FVector2D MeshResolution = FVector2D(5, 5);
+	FVector2D MeshResolution = FVector2D(10, 10);
+	//TODO: Ensure MeshResolution is a multiple of SectionAmount
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
-	FVector2D SectionAmount = FVector2D(10.0f, 10.0f);
+	FVector2D SectionAmount = FVector2D(2.0f, 2.0f);
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UProceduralMeshComponent> LandscapeMesh;
+	
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bEnableDebug;
@@ -38,11 +40,9 @@ protected:
 #endif
 
 	void PrepareHeightValues(TArray<float>& OutHeightValues) const;
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 #if WITH_EDITOR
-	inline static const TSet<FString> MeshGenerationAffectingProperties = {"LandscapeSize", "MeshResolution"};
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
@@ -54,7 +54,16 @@ protected:
 	 * 10	11	12	13	14
 	 * 15	16	17	18	19
 	 */
-	TArray<int32> GetSectionIdsInArea(const FBox2D& Area) const;
+	TArray<int32> GetSectionsInArea(const FBox2D& Area) const;
 	
+	/**
+	 * Get the grid coordinates of the 
+	 * @param SectionId				The id of the section
+	 * @param OutCoordinateResult	The coordinate result
+	 */
+	void GetSectionCoordinates(int32 SectionId, FIntVector2& OutCoordinateResult) const;
+
+	FBox2D GetSectionBounds(int32 SectionIndex) const;
 	void GenerateMesh() const;
+	void GenerateSection(int32 SectionIndex) const;
 };

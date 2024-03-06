@@ -38,14 +38,11 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	MeshResolution.X = FMath::RoundToInt(MeshResolution.X);
 	MeshResolution.Y = FMath::RoundToInt(MeshResolution.Y);
 
-	if (MeshGenerationAffectingProperties.Contains(PropertyChangedEvent.MemberProperty->GetName()))
-	{
-		GenerateMesh();
-	}
+	GenerateMesh();
 }
 #endif
 
-TArray<int32> ARuntimeLandscape::GetSectionIdsInArea(const FBox2D& Area) const
+TArray<int32> ARuntimeLandscape::GetSectionsInArea(const FBox2D& Area) const
 {
 	const float SectionSizeX = LandscapeSize.X / SectionAmount.X;
 	const float SectionSizeY = LandscapeSize.Y / SectionAmount.Y;
@@ -73,12 +70,41 @@ TArray<int32> ARuntimeLandscape::GetSectionIdsInArea(const FBox2D& Area) const
 	return Result;
 }
 
+void ARuntimeLandscape::GetSectionCoordinates(int32 SectionId, FIntVector2& OutCoordinateResult) const
+{
+	OutCoordinateResult.X = SectionId % FMath::RoundToInt(SectionAmount.X);
+	OutCoordinateResult.Y = FMath::FloorToInt(SectionId / SectionAmount.X);
+}
+
+FBox2D ARuntimeLandscape::GetSectionBounds(int32 SectionIndex) const
+{
+	const FVector2D SectionSize = LandscapeSize / SectionAmount;
+	FIntVector2 SectionCoordinates;
+	GetSectionCoordinates(SectionIndex, SectionCoordinates);
+
+	return FBox2D(
+		FVector2D(SectionCoordinates.X * SectionSize.X, SectionCoordinates.Y * SectionSize.Y),
+		FVector2D((SectionCoordinates.X + 1) * SectionSize.X, (SectionCoordinates.Y + 1) * SectionSize.Y));
+}
+
 void ARuntimeLandscape::GenerateMesh() const
 {
+	const int32 RequiredSectionAmount = SectionAmount.X * SectionAmount.Y;
+	for (int32 i = 0; i < RequiredSectionAmount; i++)
+	{
+		GenerateSection(i);
+	}
+}
+
+void ARuntimeLandscape::GenerateSection(int32 SectionIndex) const
+{
+	const FVector2D SectionResolution = MeshResolution / SectionAmount;
+	const FVector2D SectionOffset = GetSectionBounds(SectionIndex).Min;
+	
 	TArray<FVector> Vertices;
-	Vertices.Reserve((MeshResolution.X + 1) * (MeshResolution.Y + 1));
+	Vertices.Reserve((SectionResolution.X + 1) * (SectionResolution.Y + 1));
 	TArray<int32> Triangles;
-	Triangles.Reserve(MeshResolution.X * MeshResolution.Y * 2);
+	Triangles.Reserve(SectionResolution.X * SectionResolution.Y * 2);
 
 	const FVector2D VertexDistance = LandscapeSize / MeshResolution;
 
@@ -87,26 +113,26 @@ void ARuntimeLandscape::GenerateMesh() const
 
 	int32 VertexIndex = 0;
 	// generate first row of points
-	for (uint32 X = 0; X <= MeshResolution.X; X++)
+	for (uint32 X = 0; X <= SectionResolution.X; X++)
 	{
-		Vertices.Add(FVector(X * VertexDistance.X, 0, HeightValues[VertexIndex]));
+		Vertices.Add(FVector(X * VertexDistance.X + SectionOffset.X, SectionOffset.Y, HeightValues[VertexIndex]));
 		VertexIndex++;
 	}
 
-	for (uint32 Y = 0; Y < MeshResolution.Y; Y++)
+	for (uint32 Y = 0; Y < SectionResolution.Y; Y++)
 	{
 		const float Y1 = Y + 1;
-		Vertices.Add(FVector(0, Y1 * VertexDistance.Y, HeightValues[VertexIndex]));
+		Vertices.Add(FVector(SectionOffset.X, Y1 * VertexDistance.Y + SectionOffset.Y, HeightValues[VertexIndex]));
 		VertexIndex++;
 
 		// generate triangle strip in X direction
-		for (uint32 X = 0; X < MeshResolution.X; X++)
+		for (uint32 X = 0; X < SectionResolution.X; X++)
 		{
-			Vertices.Add(FVector((X + 1) * VertexDistance.X, Y1 * VertexDistance.Y, HeightValues[VertexIndex]));
+			Vertices.Add(FVector((X + 1) * VertexDistance.X + SectionOffset.X, Y1 * VertexDistance.Y + SectionOffset.Y, HeightValues[VertexIndex]));
 			VertexIndex++;
 
-			int32 T1 = Y * (MeshResolution.X + 1) + X;
-			int32 T2 = T1 + MeshResolution.X + 1;
+			int32 T1 = Y * (SectionResolution.X + 1) + X;
+			int32 T2 = T1 + SectionResolution.X + 1;
 			int32 T3 = T1 + 1;
 
 			// add upper-left triangle
@@ -122,22 +148,22 @@ void ARuntimeLandscape::GenerateMesh() const
 	}
 
 	// if The vertex amount is differs, something is wrong with the algorithm
-	check(Vertices.Num() == (MeshResolution.X + 1) * (MeshResolution.Y + 1));
+	check(Vertices.Num() == (SectionResolution.X + 1) * (SectionResolution.Y + 1));
 	// if The triangle amount is differs, something is wrong with the algorithm
-	check(Triangles.Num() == MeshResolution.X * MeshResolution.Y * 6);
-
+	check(Triangles.Num() == SectionResolution.X * SectionResolution.Y * 6);
 	const TArray<FVector> Normals;
 	const TArray<FVector2D> UV0;
+	const TArray<FProcMeshTangent> Tangents;
 	TArray<FColor> VertexColors;
 
 #if WITH_EDITORONLY_DATA
 	if (bEnableDebug && DebugMaterial)
 	{
-		LandscapeMesh->SetMaterial(0, DebugMaterial);
-		const int32 RowIndex = SectionIndex % FMath::RoundToInt(SectionAmount.X);
-		const int32 ColumnIndex = SectionIndex - RowIndex * SectionAmount.X;
-		const bool bIsEvenRow = RowIndex % 2 == 0;
-		const bool bIsEvenColumn = ColumnIndex % 2 == 0;
+		LandscapeMesh->SetMaterial(SectionIndex, DebugMaterial);
+		FIntVector2 SectionCoordinates;
+		GetSectionCoordinates(SectionIndex, SectionCoordinates);
+		const bool bIsEvenRow = SectionCoordinates.Y % 2 == 0;
+		const bool bIsEvenColumn = SectionCoordinates.X % 2 == 0;
 		const FColor SectionColor = bIsEvenColumn && bIsEvenRow || !bIsEvenColumn && !bIsEvenRow
 			                            ? DebugColor1
 			                            : DebugColor2;
@@ -145,6 +171,5 @@ void ARuntimeLandscape::GenerateMesh() const
 	}
 #endif
 
-	const TArray<FProcMeshTangent> Tangents;
-	LandscapeMesh->CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, false);
+	LandscapeMesh->CreateMeshSection(SectionIndex, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, false);
 }
