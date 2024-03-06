@@ -5,6 +5,7 @@
 
 #include "KismetProceduralMeshLibrary.h"
 #include "LandscapeLayerComponent.h"
+#include "NavigationSystem.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscape.h"
 
@@ -33,7 +34,7 @@ void URuntimeLandscapeComponent::Initialize(int32 ComponentIndex, const TArray<f
 		}
 
 		Index = ComponentIndex;
-		Rebuild(true);
+		Rebuild();
 	}
 }
 
@@ -64,7 +65,7 @@ void URuntimeLandscapeComponent::AddHole(TObjectPtr<const ALandscapeHole> Hole)
 		VertexIndex++;
 	}
 
-	Rebuild(true);
+	Rebuild();
 }
 
 void URuntimeLandscapeComponent::RemoveHole(TObjectPtr<const ALandscapeHole> Hole)
@@ -78,18 +79,18 @@ void URuntimeLandscapeComponent::RemoveHole(TObjectPtr<const ALandscapeHole> Hol
 
 void URuntimeLandscapeComponent::UpdateHoles()
 {
-	if(VerticesInHole.IsEmpty() && Holes.IsEmpty())
+	if (VerticesInHole.IsEmpty() && Holes.IsEmpty())
 	{
 		return;
 	}
-	
+
 	VerticesInHole.Empty();
-	if(Holes.IsEmpty())
+	if (Holes.IsEmpty())
 	{
 		Rebuild();
 		return;
 	}
-	
+
 	int32 VertexIndex = 0;
 	for (const FProcMeshVertex& Vertex : GetProcMeshSection(0)->ProcVertexBuffer)
 	{
@@ -108,7 +109,7 @@ void URuntimeLandscapeComponent::UpdateHoles()
 	Rebuild();
 }
 
-void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
+void URuntimeLandscapeComponent::Rebuild()
 {
 	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Rebuilding Landscape component %s %i..."), *GetOwner()->GetName(),
 	       Index);
@@ -228,7 +229,9 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 #endif
 
 	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0, Normals, Tangents);
-	CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, bUpdateCollision);
+	CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, ParentLandscape->bUpdateCollision);
+	UpdateNavigation();
+
 	bIsStale = false;
 }
 
@@ -243,6 +246,17 @@ void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightVal
 		{
 			Layer->ApplyLayerData(GetRelativeVertexLocation(i) + FVector2D(GetComponentLocation()), OutHeightValues[i],
 			                      OutVertexColors[i]);
+		}
+	}
+}
+
+void URuntimeLandscapeComponent::UpdateNavigation()
+{
+	if (ParentLandscape->bUpdateNavigation)
+	{
+		if (const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+		{
+			NavSys->UpdateComponentInNavOctree(*this);
 		}
 	}
 }

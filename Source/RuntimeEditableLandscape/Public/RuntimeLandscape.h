@@ -25,6 +25,14 @@ public:
 	FBodyInstance BodyInstance;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Collision)
 	uint32 bGenerateOverlapEvents : 1;
+	UPROPERTY(EditAnywhere, Category = "Performance")
+	uint8 bUpdateCollision : 1 = 1;
+	UPROPERTY(EditAnywhere, Category = "Performance")
+	/**
+	 * Whether landscape updates at runtime should affect navigation
+	 * NOTE: Requires 'Navigation Mesh->Runtime->Runtime Generation->Dynamic' in the project settings
+	 */
+	uint8 bUpdateNavigation : 1 = 1;
 	
 	/**
 	 * Adds a new layer to the landscape
@@ -81,6 +89,8 @@ protected:
 	UPROPERTY(EditAnywhere)
 	/** The base for scaling landscape height (8 bit?) */
 	int32 HeightValueBits = 7;
+	UPROPERTY(EditAnywhere)
+	uint8 bCanEverAffectNavigation : 1 = 1;
 	UPROPERTY()
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY()
@@ -90,8 +100,6 @@ protected:
 	FVector2D ComponentAmount = FVector2D(2.0f, 2.0f);
 	UPROPERTY()
 	FVector2D ComponentResolution;
-	UPROPERTY(EditAnywhere, Category = "Performance")
-	bool bUpdateCollision = true;
 	UPROPERTY()
 	TArray<TObjectPtr<URuntimeLandscapeComponent>> LandscapeComponents;
 	UPROPERTY()

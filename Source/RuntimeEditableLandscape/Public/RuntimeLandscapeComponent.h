@@ -64,6 +64,7 @@ protected:
 	UPROPERTY()
 	bool bIsStale;
 
-	void Rebuild(bool bUpdateCollision = true);
+	void Rebuild();
 	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
+	void UpdateNavigation();
 };

@@ -194,6 +194,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 		LandscapeComponent->BodyInstance = FBodyInstance();
 		LandscapeComponent->BodyInstance.CopyBodyInstancePropertiesFrom(&ParentLandscape->BodyInstance);
 		LandscapeComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
+		LandscapeComponent->SetCanEverAffectNavigation(bCanEverAffectNavigation);
 
 		// calculate index by position for more efficient access later
 		const FVector StartLocation = ParentOrigin - ParentExtent;
