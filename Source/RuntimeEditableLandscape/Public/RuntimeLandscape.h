@@ -85,6 +85,9 @@ protected:
 	UPROPERTY()
 	TArray<TObjectPtr<URuntimeLandscapeComponent>> LandscapeComponents;
 	UPROPERTY(EditAnywhere)
+	/** The base for scaling landscape height (8 bit?) */
+	int32 HeightValueBits = 7;
+	UPROPERTY()
 	float HeightScale = 1.0f;
 	UPROPERTY(EditAnywhere)
 	/** The side length of a single component in units (components are always squares) */
