@@ -4,6 +4,7 @@
 #include "RuntimeLandscape.h"
 
 #include "Landscape.h"
+#include "LandscapeLayerComponent.h"
 #include "ProceduralMeshComponent.h"
 
 ARuntimeLandscape::ARuntimeLandscape()
@@ -11,10 +12,44 @@ ARuntimeLandscape::ARuntimeLandscape()
 	LandscapeMesh = CreateDefaultSubobject<UProceduralMeshComponent>("Landscape mesh");
 }
 
+void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild)
+{
+	if (!ensure(LayerToAdd))
+	{
+		return;
+	}
+
+	if (bForceRebuild)
+	{
+		GenerateSections(GetSectionsInArea(LayerToAdd->GetAffectedArea()));
+	}
+	else
+	{
+		for (const int32 AffectedSectionIndex : GetSectionsInArea(LayerToAdd->GetAffectedArea()))
+		{
+			FSectionData& AffectedSection = Sections[AffectedSectionIndex];
+			AffectedSection.AffectingLayers.Add(LayerToAdd);
+			AffectedSection.bIsStale = true;
+		}
+	}
+}
+
 void ARuntimeLandscape::BeginPlay()
 {
 	Super::BeginPlay();
 	GenerateMesh();
+}
+
+// ReSharper disable once CppParameterMayBeConstPtrOrRef - bound to delegate
+void ARuntimeLandscape::HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor)
+{
+	TArray<ULandscapeLayerComponent*> LandscapeLayers;
+	DestroyedActor->GetComponents(LandscapeLayers);
+
+	for (ULandscapeLayerComponent* Layer : LandscapeLayers)
+	{
+		RemoveLandscapeLayer(Layer);
+	}
 }
 
 void ARuntimeLandscape::PrepareHeightValues(TArray<FSectionData>& OutSectionData) const
@@ -84,9 +119,11 @@ bool ARuntimeLandscape::ReadHeightValuesFromLandscape(TArray<FSectionData>& OutS
 		FIntVector2 SectionCoordinates;
 		GetSectionCoordinates(SectionData.SectionIndex, SectionCoordinates);
 
-		float WorldOffsetX = GetActorLocation().X - LandscapeToCopyFrom->GetActorLocation().X + SectionCoordinates.X *
+		float WorldOffsetX = GetActorLocation().X - LandscapeToCopyFrom->GetActorLocation().X + SectionCoordinates.X
+			*
 			SizePerSection.X;
-		float WorldOffsetY = GetActorLocation().Y - LandscapeToCopyFrom->GetActorLocation().Y + SectionCoordinates.Y *
+		float WorldOffsetY = GetActorLocation().Y - LandscapeToCopyFrom->GetActorLocation().Y + SectionCoordinates.Y
+			*
 			SizePerSection.Y;
 
 		int32 SectionStartOffsetX = SizeX / ParentLandscapeSize.X * WorldOffsetX;
@@ -242,6 +279,7 @@ void ARuntimeLandscape::GenerateMesh() const
 
 void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate) const
 {
+	// TODO: generate section datasets in member variable
 	TArray<FSectionData> SectionDataSets = TArray<FSectionData>();
 	const int32 VertexAmountPerSection = GetVertexAmountPerSection();
 
@@ -252,7 +290,8 @@ void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate
 
 	PrepareHeightValues(SectionDataSets);
 
-	const FVector2D SectionResolution = MeshResolution / SectionAmount;
+	const FIntVector2 SectionResolution = FIntVector2(FMath::FloorToInt(MeshResolution.X / SectionAmount.X),
+	                                                  FMath::FloorToInt(MeshResolution.Y / SectionAmount.Y));
 
 	for (const FSectionData& SectionData : SectionDataSets)
 	{
@@ -275,14 +314,14 @@ void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate
 
 		int32 VertexIndex = 0;
 		// generate first row of points
-		for (uint32 X = 0; X <= SectionResolution.X; X++)
+		for (int32 X = 0; X <= SectionResolution.X; X++)
 		{
 			Vertices.Add(FVector(X * VertexDistance.X + SectionOffset.X, SectionOffset.Y,
 			                     SectionData.HeightValues[VertexIndex]));
 			VertexIndex++;
 		}
 
-		for (uint32 Y = 0; Y < SectionResolution.Y; Y++)
+		for (int32 Y = 0; Y < SectionResolution.Y; Y++)
 		{
 			const float Y1 = Y + 1;
 			Vertices.Add(FVector(SectionOffset.X, Y1 * VertexDistance.Y + SectionOffset.Y,
@@ -290,7 +329,7 @@ void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate
 			VertexIndex++;
 
 			// generate triangle strip in X direction
-			for (uint32 X = 0; X < SectionResolution.X; X++)
+			for (int32 X = 0; X < SectionResolution.X; X++)
 			{
 				Vertices.Add(FVector((X + 1) * VertexDistance.X + SectionOffset.X,
 				                     Y1 * VertexDistance.Y + SectionOffset.Y,
@@ -326,6 +365,7 @@ void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate
 #if WITH_EDITORONLY_DATA
 		if (bEnableDebug && DebugMaterial)
 		{
+			LandscapeMesh->CleanUpOverrideMaterials();
 			LandscapeMesh->SetMaterial(SectionData.SectionIndex, DebugMaterial);
 			FIntVector2 SectionCoordinates;
 			GetSectionCoordinates(SectionData.SectionIndex, SectionCoordinates);

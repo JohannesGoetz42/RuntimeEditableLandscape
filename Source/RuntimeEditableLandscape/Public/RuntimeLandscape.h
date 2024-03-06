@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "RuntimeLandscape.generated.h"
 
+class ULandscapeLayerComponent;
 class ALandscape;
 
 UENUM()
@@ -15,14 +16,6 @@ enum class ELandscapeMode : uint8
 	LM_CopyFromLandscape UMETA(DisplayName = "Copy from landscape")
 };
 
-UENUM()
-enum EFlattenMode
-{
-	FM_Minimum UMETA(DisplayName = "Minumum height"),
-	FM_Maximum UMETA(DisplayName = "Maximum height"),
-	FM_Average UMETA(DisplayName = "Average height")
-};
-
 struct FSectionData
 {
 	explicit FSectionData(int32 Section) : SectionIndex(Section)
@@ -30,6 +23,9 @@ struct FSectionData
 	}
 
 	int32 SectionIndex;
+	bool bIsStale = true;
+	TSet<TObjectPtr<const ULandscapeLayerComponent>> AffectingLayers = TSet<TObjectPtr<const
+		ULandscapeLayerComponent>>();
 	TArray<float> HeightValues = TArray<float>();
 };
 
@@ -43,6 +39,22 @@ class RUNTIMEEDITABLELANDSCAPE_API ARuntimeLandscape : public AActor
 public:
 	// Sets default values for this actor's properties
 	ARuntimeLandscape();
+
+	/**
+	 * Adds a new layer to the landscape
+	 * @param LayerToAdd The added landscape layer
+	 * @param bForceRebuild Whether the landscape should be updated immediately (see UpdateStaleSections()). This allows delaying the update for performance reasons
+	 */
+	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild = true);
+
+	/**
+	 * Updates all sections that were changed by layers
+	 */
+	void UpdateStaleSections()
+	{
+		GenerateSections(StaleSections.Array());
+		StaleSections.Empty();
+	}
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Height data")
@@ -66,6 +78,8 @@ protected:
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UProceduralMeshComponent> LandscapeMesh;
+	UPROPERTY(EditAnywhere)
+	TArray<FSectionData> Sections;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Debug")
@@ -78,7 +92,16 @@ protected:
 	TObjectPtr<UMaterial> DebugMaterial;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
+
 #endif
+
+	UFUNCTION()
+	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
+
+	void RemoveLandscapeLayer(ULandscapeLayerComponent* Layer)
+	{
+		ActiveLayers.Remove(Layer);
+	}
 
 	void PrepareHeightValues(TArray<FSectionData>& OutSectionData) const;
 	bool ReadHeightValuesFromLandscape(TArray<FSectionData>& OutSectionData) const;
@@ -114,6 +137,7 @@ protected:
 	{
 		return GetVertexAmountPerSectionRow() * GetVertexAmountPerSectionColumn();
 	}
+
 	/** Get the amount of vertices in a single section row */
 	FORCEINLINE int32 GetVertexAmountPerSectionRow() const { return MeshResolution.X / SectionAmount.X + 1; }
 	/** Get the amount of vertices in a single section column */
