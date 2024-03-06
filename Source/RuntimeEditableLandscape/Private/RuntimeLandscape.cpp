@@ -4,7 +4,6 @@
 #include "RuntimeLandscape.h"
 
 #include "Landscape.h"
-#include "LandscapeHole.h"
 #include "LandscapeLayerComponent.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
@@ -29,7 +28,7 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 	SCOPE_CYCLE_COUNTER(STAT_AddLandscapeLayer);
 	if (ensure(LayerToAdd))
 	{
-		for (URuntimeLandscapeComponent* Component : GetComponentsInArea(LayerToAdd->GetAffectedArea(true)))
+		for (URuntimeLandscapeComponent* Component : GetComponentsInArea(LayerToAdd->GetBoundingBox()))
 		{
 			Component->AddLandscapeLayer(LayerToAdd, bForceRebuild);
 		}

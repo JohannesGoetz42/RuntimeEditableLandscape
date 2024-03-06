@@ -46,69 +46,6 @@ FVector2D URuntimeLandscapeComponent::GetRelativeVertexLocation(int32 VertexInde
 	                 Coordinates.Y * ParentLandscape->GetQuadSideLength());
 }
 
-void URuntimeLandscapeComponent::AddHole(TObjectPtr<const ALandscapeHole> Hole)
-{
-	if (Holes.Contains(Hole))
-	{
-		return;
-	}
-
-	Holes.Add(Hole);
-	int32 VertexIndex = 0;
-
-	for (const FProcMeshVertex& Vertex : GetProcMeshSection(0)->ProcVertexBuffer)
-	{
-		if (Hole->IsLocationInside(Vertex.Position + GetComponentLocation()))
-		{
-			VerticesInHole.Add(VertexIndex);
-		}
-		VertexIndex++;
-	}
-
-	Rebuild();
-}
-
-void URuntimeLandscapeComponent::RemoveHole(TObjectPtr<const ALandscapeHole> Hole)
-{
-	if (Holes.Contains(Hole))
-	{
-		Holes.Remove(Hole);
-		UpdateHoles();
-	}
-}
-
-void URuntimeLandscapeComponent::UpdateHoles()
-{
-	if (VerticesInHole.IsEmpty() && Holes.IsEmpty())
-	{
-		return;
-	}
-
-	VerticesInHole.Empty();
-	if (Holes.IsEmpty())
-	{
-		Rebuild();
-		return;
-	}
-
-	int32 VertexIndex = 0;
-	for (const FProcMeshVertex& Vertex : GetProcMeshSection(0)->ProcVertexBuffer)
-	{
-		for (const ALandscapeHole* Hole : Holes)
-		{
-			if (Hole->IsLocationInside(Vertex.Position + GetComponentLocation()))
-			{
-				VerticesInHole.Add(VertexIndex);
-				break;
-			}
-		}
-
-		VertexIndex++;
-	}
-
-	Rebuild();
-}
-
 void URuntimeLandscapeComponent::Rebuild()
 {
 	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Rebuilding Landscape component %s %i..."), *GetOwner()->GetName(),
@@ -211,9 +148,16 @@ void URuntimeLandscapeComponent::Rebuild()
 				SectionColor = (bIsEvenColumn && bIsEvenRow) || (!bIsEvenColumn && !bIsEvenRow)
 					               ? ParentLandscape->DebugColor1
 					               : ParentLandscape->DebugColor2;
-				if (ParentLandscape->bShowComponentsWithHole && !Holes.IsEmpty())
+				if (ParentLandscape->bShowComponentsWithHole)
 				{
-					SectionColor = FColor::Red;
+					for (const ULandscapeLayerComponent* Layer : AffectingLayers)
+					{ 
+						if (Layer->GetLayerData().Contains(ELandscapeLayerType::LLT_Hole))
+						{
+							SectionColor = FColor::Red;
+							break;
+						}
+					}
 				}
 			}
 			else if (ParentLandscape->bDrawIndexGreyscales)
@@ -239,12 +183,13 @@ void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightVal
 {
 	check(OutHeightValues.Num() == InitialHeightValues.Num());
 
+	VerticesInHole.Empty();
 	OutVertexColors.Init(FColor::White, InitialHeightValues.Num());
 	for (const ULandscapeLayerComponent* Layer : AffectingLayers)
 	{
 		for (int32 i = 0; i < InitialHeightValues.Num(); i++)
 		{
-			Layer->ApplyLayerData(GetRelativeVertexLocation(i) + FVector2D(GetComponentLocation()), OutHeightValues[i],
+			Layer->ApplyLayerData(i, this, OutHeightValues[i],
 			                      OutVertexColors[i]);
 		}
 	}

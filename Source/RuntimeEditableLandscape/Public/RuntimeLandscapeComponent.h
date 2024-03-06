@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "LandscapeHole.h"
+#include "LandscapeLayerActor.h"
 #include "ProceduralMeshComponent.h"
 #include "RuntimeLandscapeComponent.generated.h"
 
@@ -18,6 +18,18 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeComponent : public UProcedur
 
 public:
 	void AddLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild);
+
+	void SetHoleFlagForVertex(int32 VertexIndex, bool bValue)
+	{
+		if (bValue)
+		{
+			VerticesInHole.Add(VertexIndex);
+		}
+		else
+		{
+			VerticesInHole.Remove(VertexIndex);
+		}
+	}
 
 	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)
 	{
@@ -42,18 +54,12 @@ public:
 
 	FVector2D GetRelativeVertexLocation(int32 VertexIndex) const;
 
-	void AddHole(TObjectPtr<const ALandscapeHole> Hole);
-	void RemoveHole(TObjectPtr<const ALandscapeHole> Hole);
-	void UpdateHoles();
-
 protected:
-	UPROPERTY()
-	TSet<TObjectPtr<const ALandscapeHole>> Holes = TSet<TObjectPtr<const ALandscapeHole>>();
 	UPROPERTY()
 	TArray<float> InitialHeightValues = TArray<float>();
 	UPROPERTY()
 	/** All vertices that are inside at least one hole */
-	TArray<int32> VerticesInHole = TArray<int32>();
+	TSet<int32> VerticesInHole = TSet<int32>();
 	UPROPERTY()
 	TSet<TObjectPtr<const ULandscapeLayerComponent>> AffectingLayers = TSet<TObjectPtr<const
 		ULandscapeLayerComponent>>();

@@ -41,6 +41,8 @@ public:
 	 */
 	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild = true);
 
+	void RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bool bForceRebuild = true);
+
 	/** Get the amount of vertices in a single component */
 	FORCEINLINE int32 GetTotalVertexAmountPerComponent() const
 	{
@@ -116,8 +118,6 @@ protected:
 
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
-
-	void RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bool bForceRebuild = true);
 
 
 #if WITH_EDITORONLY_DATA
