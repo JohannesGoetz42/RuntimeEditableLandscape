@@ -53,7 +53,6 @@ void ULandscapeLayerComponent::ApplyLayerData(const FVector2D VertexLocation, fl
 	}
 }
 
-
 // Called when the game starts
 void ULandscapeLayerComponent::BeginPlay()
 {

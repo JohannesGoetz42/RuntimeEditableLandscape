@@ -24,7 +24,12 @@ void URuntimeLandscapeComponent::Initialize(int32 ComponentIndex, const TArray<f
 	ParentLandscape = Cast<ARuntimeLandscape>(GetOwner());
 	if (ensure(ParentLandscape))
 	{
-		InitialHeightValues = HeightValues;
+		InitialHeightValues.SetNumUninitialized(HeightValues.Num());
+		for (int32 i = 0; i < HeightValues.Num(); i++)
+		{
+			InitialHeightValues[i] = HeightValues[i] + ParentLandscape->GetParentHeight();
+		}
+
 		Index = ComponentIndex;
 		Rebuild(true);
 	}
@@ -71,7 +76,7 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 	// generate first row of points
 	for (int32 X = 0; X <= SectionResolution.X; X++)
 	{
-		Vertices.Add(FVector(X * VertexDistance.X, 0, HeightValues[VertexIndex]));
+		Vertices.Add(FVector(X * VertexDistance.X, 0, HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
 		UV0.Add(FVector2D(X * UVIncrement, 0));
 		VertexIndex++;
 	}
@@ -79,14 +84,15 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 	for (int32 Y = 0; Y < SectionResolution.Y; Y++)
 	{
 		const float Y1 = Y + 1;
-		Vertices.Add(FVector(0, Y1 * VertexDistance.Y, HeightValues[VertexIndex]));
+		Vertices.Add(FVector(0, Y1 * VertexDistance.Y, HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
 		UV0.Add(FVector2D(0, Y1 * UVIncrement));
 		VertexIndex++;
 
 		// generate triangle strip in X direction
 		for (int32 X = 0; X < SectionResolution.X; X++)
 		{
-			Vertices.Add(FVector((X + 1) * VertexDistance.X, Y1 * VertexDistance.Y, HeightValues[VertexIndex]));
+			Vertices.Add(FVector((X + 1) * VertexDistance.X, Y1 * VertexDistance.Y,
+			                     HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
 			UV0.Add(FVector2D((X + 1) * UVIncrement, Y1 * UVIncrement));
 			VertexIndex++;
 

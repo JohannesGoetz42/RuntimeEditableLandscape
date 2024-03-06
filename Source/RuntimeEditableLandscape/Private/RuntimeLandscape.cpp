@@ -138,6 +138,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	}
 
 	HeightScale = LandscapeToCopyFrom->GetActorScale().Z / FMath::Pow(2.0f, HeightValueBits);
+	ParentHeight = LandscapeToCopyFrom->GetActorLocation().Z;
 
 	const FIntRect Rect = LandscapeToCopyFrom->GetBoundingRect();
 	MeshResolution.X = Rect.Max.X - Rect.Min.X;

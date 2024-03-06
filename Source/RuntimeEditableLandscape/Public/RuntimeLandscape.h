@@ -44,6 +44,7 @@ public:
 	FORCEINLINE const FVector2D& GetMeshResolution() const { return MeshResolution; }
 	FORCEINLINE const FVector2D& GetComponentAmount() const { return ComponentAmount; }
 	FORCEINLINE float GetQuadSideLength() const { return QuadSideLength; }
+	FORCEINLINE float GetParentHeight() const { return ParentHeight; }
 
 	/**
 	 * Get the ids for the sections contained in the specified area
@@ -96,6 +97,8 @@ protected:
 	FIntVector2 VertexAmountPerComponent;
 	UPROPERTY()
 	float QuadSideLength;
+	UPROPERTY()
+	float ParentHeight;
 
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
