@@ -26,16 +26,6 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 	}
 }
 
-void ARuntimeLandscape::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (LandscapeToCopyFrom)
-	{
-		LandscapeToCopyFrom->Destroy();
-	}
-}
-
 // ReSharper disable once CppParameterMayBeConstPtrOrRef - bound to delegate
 void ARuntimeLandscape::HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor)
 {
@@ -124,31 +114,31 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 		FVector2D((SectionCoordinates.X + 1) * SectionSize.X, (SectionCoordinates.Y + 1) * SectionSize.Y));
 }
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 void ARuntimeLandscape::InitializeFromLandscape()
 {
-	if (!LandscapeToCopyFrom)
+	if (!ParentLandscape)
 	{
 		return;
 	}
 
 	if (!LandscapeMaterial)
 	{
-		LandscapeMaterial = LandscapeToCopyFrom->LandscapeMaterial;
+		LandscapeMaterial = ParentLandscape->LandscapeMaterial;
 	}
 
-	HeightScale = LandscapeToCopyFrom->GetActorScale().Z / FMath::Pow(2.0f, HeightValueBits);
-	ParentHeight = LandscapeToCopyFrom->GetActorLocation().Z;
+	HeightScale = ParentLandscape->GetActorScale().Z / FMath::Pow(2.0f, HeightValueBits);
+	ParentHeight = ParentLandscape->GetActorLocation().Z;
 
-	const FIntRect Rect = LandscapeToCopyFrom->GetBoundingRect();
+	const FIntRect Rect = ParentLandscape->GetBoundingRect();
 	MeshResolution.X = Rect.Max.X - Rect.Min.X;
 	MeshResolution.Y = Rect.Max.Y - Rect.Min.Y;
 	FVector ParentOrigin;
 	FVector ParentExtent;
-	LandscapeToCopyFrom->GetActorBounds(false, ParentOrigin, ParentExtent);
+	ParentLandscape->GetActorBounds(false, ParentOrigin, ParentExtent);
 
 	LandscapeSize = FVector2D(ParentExtent * FVector(2.0f));
-	const int32 ComponentSizeQuads = LandscapeToCopyFrom->ComponentSizeQuads;
+	const int32 ComponentSizeQuads = ParentLandscape->ComponentSizeQuads;
 	QuadSideLength = ParentExtent.X * 2 / MeshResolution.X;
 	ComponentSize = ComponentSizeQuads * QuadSideLength;
 	ComponentAmount = FVector2D(MeshResolution.X / ComponentSizeQuads, MeshResolution.Y / ComponentSizeQuads);
@@ -167,10 +157,10 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	}
 
 	// create landscape components
-	LandscapeComponents.SetNumUninitialized(LandscapeToCopyFrom->CollisionComponents.Num());
+	LandscapeComponents.SetNumUninitialized(ParentLandscape->CollisionComponents.Num());
 	const int32 VertexAmountPerSection = GetTotalVertexAmountPerComponent();
 
-	for (const ULandscapeHeightfieldCollisionComponent* LandscapeCollision : LandscapeToCopyFrom->CollisionComponents)
+	for (const ULandscapeHeightfieldCollisionComponent* LandscapeCollision : ParentLandscape->CollisionComponents)
 	{
 		const TUniquePtr<Chaos::FHeightField>& HeightField = LandscapeCollision->HeightfieldRef->Heightfield;
 		TArray<float> HeightValues = TArray<float>();
@@ -205,7 +195,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 
 void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeProperty(PropertyChangedEvent);	
 	InitializeFromLandscape();
 }
 #endif

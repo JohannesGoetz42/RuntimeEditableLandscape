@@ -72,8 +72,6 @@ public:
 	FBox2D GetComponentBounds(int32 SectionIndex) const;
 
 protected:
-	UPROPERTY(EditAnywhere, Category = "Height data")
-	TObjectPtr<ALandscape> LandscapeToCopyFrom;
 	UPROPERTY()
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY()
@@ -106,15 +104,12 @@ protected:
 	void RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bool bForceRebuild = true);
 
 	void InitializeFromLandscape();
-	virtual void BeginPlay() override;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
 
 #if WITH_EDITORONLY_DATA
-
 public:
+	UPROPERTY(EditAnywhere, Category = "Height data")
+	TObjectPtr<ALandscape> ParentLandscape;
+	
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UMaterialInterface> LandscapeMaterial;
 	UPROPERTY(EditAnywhere, Category = "Debug")
@@ -132,5 +127,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
 
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 };

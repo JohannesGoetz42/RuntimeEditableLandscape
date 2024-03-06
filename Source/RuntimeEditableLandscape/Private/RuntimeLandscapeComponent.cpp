@@ -4,6 +4,7 @@
 #include "RuntimeLandscapeComponent.h"
 
 #include "LandscapeLayerComponent.h"
+#include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscape.h"
 
 void URuntimeLandscapeComponent::AddLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)
@@ -45,11 +46,15 @@ FVector2D URuntimeLandscapeComponent::GetRelativeVertexLocation(int32 VertexInde
 
 void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 {
+	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Rebuilding Landscape component %s %i..."), *GetOwner()->GetName(),
+	       Index);
+
 	const int32 VertexAmount = ParentLandscape->GetTotalVertexAmountPerComponent();
 	// ensure the section data is valid
 	if (!ensure(InitialHeightValues.Num() == VertexAmount))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Section %i could not generate valid data and will not be generated!"),
+		UE_LOG(RuntimeEditableLandscape, Warning,
+		       TEXT("Component %i could not generate valid data and will not be generated!"),
 		       Index);
 		return;
 	}

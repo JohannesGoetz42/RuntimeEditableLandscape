@@ -7,6 +7,16 @@ The runtime editable Landscape is a Unreal Engine 5 Plugin that aims to make Lan
 * Edit the height of the landscape at runtime
 * Edit vertex colors at runtime
 
+## Usage
+
+### Add a runtime editable Landscape to the world
+1. Add an actor of type `ARuntimeLandscape` to your World
+2. Int the Runtime Landscape pick the `Parent Landscape`
+3. (Optional but recommended) set the `Is Editor Only Actor` on the original Landscape
+
+### Edit the Landscape at runtime
+...
+
 ## State of development
 
 At the moment this plugin is still in prototyping phase. There is some functionality available, but I do not recommend using it for your own project, yet.
