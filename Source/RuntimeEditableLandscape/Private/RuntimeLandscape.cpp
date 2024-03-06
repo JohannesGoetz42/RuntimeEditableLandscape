@@ -9,6 +9,20 @@ ARuntimeLandscape::ARuntimeLandscape()
 {
 	LandscapeMesh = CreateDefaultSubobject<UProceduralMeshComponent>("Landscape mesh");
 }
+}
+
+void ARuntimeLandscape::PrepareHeightValues(TArray<float>& OutHeightValues) const
+{
+	const int32 ExpectedValueCount = (MeshResolution.X + 1) * (MeshResolution.Y + 1);
+	OutHeightValues.Reserve(ExpectedValueCount);
+	for (int32 i = 0; i < ExpectedValueCount; i++)
+	{
+		float HeightValue = FMath::RandRange(0.0f, 300.0f);
+		OutHeightValues.Add(HeightValue);
+	}
+
+	check(OutHeightValues.Num() == ExpectedValueCount);
+}
 
 // Called when the game starts or when spawned
 void ARuntimeLandscape::BeginPlay()
@@ -68,21 +82,28 @@ void ARuntimeLandscape::GenerateMesh() const
 
 	const FVector2D VertexDistance = LandscapeSize / MeshResolution;
 
+	TArray<float> HeightValues;
+	PrepareHeightValues(HeightValues);
+
+	int32 VertexIndex = 0;
 	// generate first row of points
 	for (uint32 X = 0; X <= MeshResolution.X; X++)
 	{
-		Vertices.Add(FVector(X * VertexDistance.X, 0, 0.0f));
+		Vertices.Add(FVector(X * VertexDistance.X, 0, HeightValues[VertexIndex]));
+		VertexIndex++;
 	}
 
 	for (uint32 Y = 0; Y < MeshResolution.Y; Y++)
 	{
 		const float Y1 = Y + 1;
-		Vertices.Add(FVector(0, Y1 * VertexDistance.Y, 0.0f));
+		Vertices.Add(FVector(0, Y1 * VertexDistance.Y, HeightValues[VertexIndex]));
+		VertexIndex++;
 
 		// generate triangle strip in X direction
 		for (uint32 X = 0; X < MeshResolution.X; X++)
 		{
-			Vertices.Add(FVector((X + 1) * VertexDistance.X, Y1 * VertexDistance.Y, 0.0f));
+			Vertices.Add(FVector((X + 1) * VertexDistance.X, Y1 * VertexDistance.Y, HeightValues[VertexIndex]));
+			VertexIndex++;
 
 			int32 T1 = Y * (MeshResolution.X + 1) + X;
 			int32 T2 = T1 + MeshResolution.X + 1;
