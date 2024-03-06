@@ -104,15 +104,26 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 		CleanUpOverrideMaterials();
 		SetMaterial(0, ParentLandscape->DebugMaterial);
 
-		if (ParentLandscape->bDrawDebugCheckerBoard)
+		if (ParentLandscape->bDrawDebugCheckerBoard || ParentLandscape->bDrawIndexGreyscales)
 		{
 			FIntVector2 SectionCoordinates;
 			ParentLandscape->GetComponentCoordinates(Index, SectionCoordinates);
 			const bool bIsEvenRow = SectionCoordinates.Y % 2 == 0;
 			const bool bIsEvenColumn = SectionCoordinates.X % 2 == 0;
-			const FColor SectionColor = (bIsEvenColumn && bIsEvenRow) || !(bIsEvenColumn && bIsEvenRow)
-				                            ? ParentLandscape->DebugColor1
-				                            : ParentLandscape->DebugColor2;
+			FColor SectionColor = FColor::White;
+			if (ParentLandscape->bDrawDebugCheckerBoard)
+			{
+				SectionColor = (bIsEvenColumn && bIsEvenRow) || (!bIsEvenColumn && !bIsEvenRow)
+					               ? ParentLandscape->DebugColor1
+					               : ParentLandscape->DebugColor2;
+			}
+			else if (ParentLandscape->bDrawIndexGreyscales)
+			{
+				const float Factor = Index / (ParentLandscape->GetComponentAmount().X * ParentLandscape->
+					GetComponentAmount().Y);
+				SectionColor = FLinearColor::LerpUsingHSV(FLinearColor::White, FLinearColor::Black, Factor).
+					ToFColor(false);
+			}
 			VertexColors.Init(SectionColor, Vertices.Num());
 		}
 	}

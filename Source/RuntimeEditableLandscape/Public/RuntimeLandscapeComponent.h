@@ -47,8 +47,9 @@ protected:
 		ULandscapeLayerComponent>>();
 	UPROPERTY()
 	const ARuntimeLandscape* ParentLandscape;
-
+	UPROPERTY()
 	int32 Index;
+	UPROPERTY()
 	bool bIsStale;
 
 	void Rebuild(bool bUpdateCollision = true);

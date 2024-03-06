@@ -32,13 +32,9 @@ public:
 	/** Get the amount of vertices in a single section */
 	int32 GetVertexAmountPerSection() const
 	{
-		return GetVertexAmountPerComponentRow() * GetVertexAmountPerComponentColumn();
+		return (MeshResolution.X / ComponentAmount.X + 1) * (MeshResolution.Y / ComponentAmount.Y + 1);
 	}
 
-	/** Get the amount of vertices in a single section row */
-	FORCEINLINE int32 GetVertexAmountPerComponentRow() const { return MeshResolution.X / ComponentAmount.X + 1; }
-	/** Get the amount of vertices in a single section column */
-	FORCEINLINE int32 GetVertexAmountPerComponentColumn() const { return MeshResolution.Y / ComponentAmount.Y + 1; }
 	/** Get the size of a single section */
 	FORCEINLINE FVector2D GetSizePerComponent() const { return LandscapeSize / ComponentAmount; }
 	FORCEINLINE const FVector2D& GetLandscapeSize() const { return LandscapeSize; }
@@ -65,17 +61,6 @@ public:
 	FBox2D GetComponentBounds(int32 SectionIndex) const;
 
 	/**
-	 * Get the world location of a specified vertex
-	 * @param ComponentIndex		The index of the section the vertex is contained in
-	 * @param VertexIndex		The index of the vertex
-	 */
-	FVector2D GetVertexLocation(int32 ComponentIndex, int32 VertexIndex) const
-	{
-		return FVector2D(GetActorLocation()) + GetRelativeSectionLocation(ComponentIndex) + GetRelativeLocationOfVertex(
-			VertexIndex);
-	}
-
-	/**
 	 * Get the start location of the specified section relative to the actor location
 	 * @param SectionIndex		The index of the section
 	 */
@@ -84,28 +69,6 @@ public:
 		FIntVector2 SectionCoordinates;
 		GetComponentCoordinates(SectionIndex, SectionCoordinates);
 		return GetSizePerComponent() * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
-	}
-
-	/**
-	 * Get the location of a specified vertex relative to it's section
-	 * @param VertexIndex		The index of the vertex
-	 */
-	FVector2D GetRelativeLocationOfVertex(int32 VertexIndex) const
-	{
-		const FIntVector2 VertexCoordinates = GetVertexCoordinatesInSection(VertexIndex);
-		const FVector2D VertexDistance = LandscapeSize / MeshResolution;
-		return FVector2D(VertexCoordinates.X * VertexDistance.X, VertexCoordinates.Y * VertexDistance.Y);
-	}
-
-	/**
-	 * Get the coordinates of a vertex within it's section
-	 * @param VertexIndex  The index of the vertex
-	 */
-	FIntVector2 GetVertexCoordinatesInSection(int32 VertexIndex) const
-	{
-		return FIntVector2(VertexIndex % GetVertexAmountPerComponentRow(),
-		                   FMath::FloorToInt(
-			                   static_cast<float>(VertexIndex) / static_cast<float>(GetVertexAmountPerComponentRow())));
 	}
 
 protected:
@@ -124,6 +87,9 @@ protected:
 	TArray<TObjectPtr<URuntimeLandscapeComponent>> LandscapeComponents;
 	UPROPERTY(EditAnywhere)
 	float HeightScale = 1.0f;
+	UPROPERTY(EditAnywhere)
+	/** The side length of a single component in units (components are always squares) */
+	float ComponentSize;
 
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
@@ -149,10 +115,14 @@ protected:
 #if WITH_EDITORONLY_DATA
 
 public:
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UMaterialInterface> LandscapeMaterial;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bEnableDebug;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bDrawDebugCheckerBoard;
+	UPROPERTY(EditAnywhere, Category = "Debug", meta = (EditCondition="!bDrawDebugCheckerBoard", EditConditionHides))
+	bool bDrawIndexGreyscales;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	FColor DebugColor1 = FColor::Blue;
 	UPROPERTY(EditAnywhere, Category = "Debug")

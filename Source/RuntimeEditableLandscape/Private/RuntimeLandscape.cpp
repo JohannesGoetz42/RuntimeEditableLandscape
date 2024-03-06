@@ -118,6 +118,11 @@ void ARuntimeLandscape::InitializeFromLandscape()
 		return;
 	}
 
+	if (!LandscapeMaterial)
+	{
+		LandscapeMaterial = LandscapeToCopyFrom->LandscapeMaterial;
+	}
+
 	const FIntRect Rect = LandscapeToCopyFrom->GetBoundingRect();
 	MeshResolution.X = Rect.Max.X - Rect.Min.X;
 	MeshResolution.Y = Rect.Max.Y - Rect.Min.Y;
@@ -127,8 +132,9 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	LandscapeToCopyFrom->GetActorBounds(false, ParentOrigin, ParentExtent);
 
 	LandscapeSize = FVector2D(ParentExtent * FVector(2.0f));
-	const int32 ComponentSize = LandscapeToCopyFrom->ComponentSizeQuads;
-	ComponentAmount = FVector2D(MeshResolution.X / ComponentSize, MeshResolution.Y / ComponentSize);
+	const int32 ComponentSizeQuads = LandscapeToCopyFrom->ComponentSizeQuads;
+	ComponentSize = ComponentSizeQuads * (ParentExtent.X * 2 / MeshResolution.X);
+	ComponentAmount = FVector2D(MeshResolution.X / ComponentSizeQuads, MeshResolution.Y / ComponentSizeQuads);
 
 	// clean up old components but remember existing layers
 	TSet<TObjectPtr<const ULandscapeLayerComponent>> LandscapeLayers;
@@ -144,7 +150,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	// create landscape components
 	LandscapeComponents.SetNumUninitialized(LandscapeToCopyFrom->CollisionComponents.Num());
 	const int32 VertexAmountPerSection = GetVertexAmountPerSection();
-	int32 ComponentIndex = 0;
+
 	for (const ULandscapeHeightfieldCollisionComponent* LandscapeCollision : LandscapeToCopyFrom->CollisionComponents)
 	{
 		const TUniquePtr<Chaos::FHeightField>& HeightField = LandscapeCollision->HeightfieldRef->Heightfield;
@@ -159,9 +165,16 @@ void ARuntimeLandscape::InitializeFromLandscape()
 		LandscapeComponent->RegisterComponent();
 		LandscapeComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		LandscapeComponent->SetWorldLocation(LandscapeCollision->GetComponentLocation());
+		LandscapeComponent->SetMaterial(0, LandscapeMaterial);
+
+		// calculate index by position for more efficient access later
+		const FVector StartLocation = ParentOrigin - ParentExtent;
+		const FVector ComponentLocation = LandscapeComponent->GetComponentLocation() - StartLocation;
+		const int32 ComponentIndex = ComponentLocation.X / ComponentSize + ComponentLocation.Y / ComponentSize *
+			ComponentAmount.X;
+
 		LandscapeComponent->Initialize(ComponentIndex, HeightValues);
 		LandscapeComponents[ComponentIndex] = LandscapeComponent;
-		ComponentIndex++;
 	}
 
 	// add remembered layers
