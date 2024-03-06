@@ -6,7 +6,6 @@
 #include "Landscape.h"
 #include "ProceduralMeshComponent.h"
 
-// Sets default values
 ARuntimeLandscape::ARuntimeLandscape()
 {
 	LandscapeMesh = CreateDefaultSubobject<UProceduralMeshComponent>("Landscape mesh");
@@ -18,86 +17,172 @@ void ARuntimeLandscape::BeginPlay()
 	GenerateMesh();
 }
 
-}
-
-void ARuntimeLandscape::PrepareHeightValues(TArray<float>& OutHeightValues) const
+void ARuntimeLandscape::PrepareHeightValues(TArray<FSectionData>& OutSectionData) const
 {
-	const int32 ExpectedValueCount = (MeshResolution.X + 1) * (MeshResolution.Y + 1);
-	OutHeightValues.Reserve(ExpectedValueCount);
-
-	TArray<FColor> HeightColorData;
 	switch (LandscapeMode)
 	{
 	case ELandscapeMode::LM_HeightMap:
-		ReadHeightValuesFromHeightMap(HeightColorData);
+		if (ReadHeightValuesFromHeightMap(OutSectionData))
+		{
+			return;
+		}
 		break;
 	case ELandscapeMode::LM_CopyFromLandscape:
-		//ReadHeightValuesFromLandscape(HeightColorData);
-		ReadHeightValuesFromLandscape(OutHeightValues);
-		return;
+		if (ReadHeightValuesFromLandscape(OutSectionData))
+		{
+			return;
+		}
+		break;
 	}
 
-
-	if (HeightColorData.Num() != ExpectedValueCount)
+	const int32 VertexAmountPerSection = GetVertexAmountPerSection();
+	for (FSectionData& Data : OutSectionData)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Runtime landscape '%s' has incorrect height data size!"), *GetName());
-		return;
+		Data.HeightValues.Init(0, VertexAmountPerSection - Data.HeightValues.Num());
 	}
-
-	for (int32 i = 0; i < ExpectedValueCount; i++)
-	{
-		const FColor& HeightColor = HeightColorData[i];
-		float HeightValue = HeightColor.G * HeightScale;
-		OutHeightValues.Add(HeightValue);
-	}
-
-	check(OutHeightValues.Num() == ExpectedValueCount);
 }
 
-void ARuntimeLandscape::ReadHeightValuesFromLandscape(TArray<float>& OutHeightData) const
+bool ARuntimeLandscape::ReadHeightValuesFromLandscape(TArray<FSectionData>& OutSectionData) const
 {
 	TArray<float> LandscapeHeightData;
 	int32 SizeX;
 	int32 SizeY;
 	LandscapeToCopyFrom->GetHeightValues(SizeX, SizeY, LandscapeHeightData);
-	const int32 SampleIntervalX = SizeX / MeshResolution.X;
-	const int32 SampleIntervalY = SizeY / MeshResolution.Y;
+	//
+	const FVector2D SizePerSection = GetSizePerSection();
+	const FBox ParentLandscapeBounds = LandscapeToCopyFrom->GetCompleteBounds();
+	const FVector2D ParentLandscapeSize = FVector2D(ParentLandscapeBounds.Max.X - ParentLandscapeBounds.Min.X,
+	                                                ParentLandscapeBounds.Max.Y - ParentLandscapeBounds.Min.Y);
+	UE_LOG(LogTemp, Display, TEXT("LandscapeSize: %s"), *ParentLandscapeSize.ToString());
+	// const FVector2D ParentToLocalOffset = FVector2D(GetActorLocation() - ParentLandscapeBounds.Min);
+	// if (ParentToLocalOffset.X < 0 || ParentToLocalOffset.Y < 0)
+	// {
+	// 	UE_LOG(LogTemp, Warning, TEXT("Runtime landscape '%s' is outside of it's parents bounds!"), *GetName());
+	// 	return false;
+	// }
 
-	for (int32 Y = 0; Y < MeshResolution.Y + 1; Y++)
+	// const FVector2D WorldUnitsPerParentVertex = FVector2D(ParentLandscapeSize.X / SizeX, ParentLandscapeSize.Y / SizeY);
+	const FIntVector2 SampleInterval = FIntVector2(
+		SizeX / MeshResolution.X * (LandscapeSize.X / ParentLandscapeSize.X),
+		SizeY / MeshResolution.Y * (LandscapeSize.Y / ParentLandscapeSize.Y));
+	// const FVector2D SampleIntervalFloat = FVector2D(
+	// 	SizeX / MeshResolution.X * (LandscapeSize.X / ParentLandscapeSize.X),
+	// 	SizeY / MeshResolution.Y * (LandscapeSize.Y / ParentLandscapeSize.Y));
+
+	// compensate sample error to avoid scaling issues
+	// FVector2D SampleError = FVector2D(
+	// 	SizeX / MeshResolution.X * (LandscapeSize.X / ParentLandscapeSize.X),
+	// 	SizeY / MeshResolution.Y * (LandscapeSize.Y / ParentLandscapeSize.Y));
+	// SampleError.X -= SampleInterval.X;
+	// SampleError.Y -= SampleInterval.Y;
+
+	UE_LOG(LogTemp, Display, TEXT("#"));
+	UE_LOG(LogTemp, Display, TEXT("#"));
+	UE_LOG(LogTemp, Display, TEXT("IntMAX: %i"), INT32_MAX);
+	for (FSectionData& SectionData : OutSectionData)
 	{
-		const int32 OffsetY = Y * SizeX * SampleIntervalY;
-		for (int32 X = 0; X < MeshResolution.X + 1; X++)
+		FIntVector2 SectionCoordinates;
+		GetSectionCoordinates(SectionData.SectionIndex, SectionCoordinates);
+
+		float WorldOffsetX = GetActorLocation().X - LandscapeToCopyFrom->GetActorLocation().X + SectionCoordinates.X *
+			SizePerSection.X;
+		float WorldOffsetY = GetActorLocation().Y - LandscapeToCopyFrom->GetActorLocation().Y + SectionCoordinates.Y *
+			SizePerSection.Y;
+
+		int32 SectionStartOffsetX = SizeX / ParentLandscapeSize.X * WorldOffsetX;
+		int32 SectionStartOffsetY = SizeY / ParentLandscapeSize.Y * WorldOffsetY;
+		// calculate the section start offset in the height data
+		// const FVector2D SectionRelativeOffset = SizePerSection * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
+		// const int32 SectionStartOffsetX = FMath::FloorToInt(
+		// 	(ParentToLocalOffset.X + SectionRelativeOffset.X) / WorldUnitsPerParentVertex.X);
+		// const int32 SectionStartOffsetY = FMath::FloorToInt(
+		// 	(ParentToLocalOffset.Y + SectionRelativeOffset.Y) / WorldUnitsPerParentVertex.Y * SizeX);
+
+		FVector2D CurrentSampleError;
+		// const float TEST = (ParentToLocalOffset.Y + SectionRelativeOffset.Y) / WorldUnitsPerParentVertex.Y;
+		// UE_LOG(LogTemp, Display, TEXT("Section: %i"), SectionData.SectionIndex);
+		// UE_LOG(LogTemp, Display, TEXT("		StartOffsetX: %i"), SectionStartOffsetX);
+		// UE_LOG(LogTemp, Display, TEXT("		StartOffsetY: %i"), SectionStartOffsetY);
+		UE_LOG(LogTemp, Display, TEXT("		SampleIntX: %i"), SampleInterval.X);
+		UE_LOG(LogTemp, Display, TEXT("		SampleIntY: %i"), SampleInterval.Y);
+		// UE_LOG(LogTemp, Display, TEXT("		SampleIntX: %f"), SampleIntervalFloat.X);
+		// UE_LOG(LogTemp, Display, TEXT("		SampleIntY: %f"), SampleIntervalFloat.Y);
+		// UE_LOG(LogTemp, Display, TEXT("		SampleErrorX: %f"), SampleError.X);
+		// UE_LOG(LogTemp, Display, TEXT("		SampleErrorY: %f"), SampleError.Y);
+		// UE_LOG(LogTemp, Display, TEXT("		TEST: %f"), TEST);
+
+		int32 SampleCorrectionCountX = 0;
+		for (int32 Y = 0; Y < GetVertexAmountPerSectionRow(); Y++)
 		{
-			// TODO: Remove if statement after finishing implementation
-			if (LandscapeHeightData.IsValidIndex(SampleIntervalX * X + OffsetY))
+			for (int32 X = 0; X < GetVertexAmountPerSectionColumn(); X++)
 			{
-				OutHeightData.Add(LandscapeHeightData[SampleIntervalX * X + OffsetY]);
+				// TODO: Remove if statement after finishing implementation
+				// int32 VertexIndex = SectionStartOffsetX + SectionStartOffsetY + X * (SampleInterval.X + SampleError.X) + Y *
+				// 	SizeX * (SampleInterval.Y + SampleError.Y);
+				// int32 VertexIndexFloat = SectionStartOffsetX + SectionStartOffsetY + X * SampleIntervalFloat.X + Y *
+				// 	SizeX * SampleIntervalFloat.Y;
+				//
+				// int32 VertexIndex = SectionStartOffsetX + SectionStartOffsetY + X * SampleInterval.X + Y *
+				// 	SizeX * SampleInterval.Y;
+				// const int32 VertexIndex = (SectionStartOffsetX + SectionStartOffsetY) + X * SampleInterval.X + Y *
+				// 	SampleInterval.X * SizeX;
+				const int32 VertexIndex = SectionStartOffsetY * SizeX + SectionStartOffsetX + X * SampleInterval.X +
+					SizeX * SampleInterval.Y * Y;
+				//UE_LOG(LogTemp, Display, TEXT("IndexDiff: %i, float: %i diff: %i"), VertexIndex, VertexIndexFloat, VertexIndexFloat - VertexIndex);
+				//UE_LOG(LogTemp, Display, TEXT("		at: x %i, y %i section %i"), X, Y, SectionData.SectionIndex);
+				if (LandscapeHeightData.IsValidIndex(VertexIndex))
+				{
+					// SectionData.HeightValues.Add(
+					// LandscapeHeightData[SampleInterval.X * X + OffsetY + SectionStartOffsetX]);
+
+					// compensate sample error
+					// CurrentSampleError.X += SampleError.X;
+					// if (CurrentSampleError.X > 1.0f)
+					// {
+					// 	VertexIndex++;
+					// 	CurrentSampleError.X--;
+					// 	SampleCorrectionCountX++;
+					// 	UE_LOG(LogTemp, Display, TEXT("		Compensated sample error: %i at %i, %i"), SampleCorrectionCountX, X, Y);
+					// }
+
+					SectionData.HeightValues.Add(
+						LandscapeHeightData[VertexIndex]);
+				}
+				else
+				{
+					SectionData.HeightValues.Add(0.0f);
+					UE_LOG(LogTemp, Warning, TEXT("InvalidIndex %i!"), VertexIndex);
+					UE_LOG(LogTemp, Warning, TEXT("X: %i, Y %i, SampleX: %i, SampleY: %i"), X, X, SampleInterval.X,
+					       SampleInterval.Y);
+					UE_LOG(LogTemp, Warning, TEXT("  StartOffsetX: %i StartOffsetY: %i"), SectionStartOffsetX,
+					       SectionStartOffsetY);
+					UE_LOG(LogTemp, Warning, TEXT("  MaxIndex: %i"), LandscapeHeightData.Num() - 1);
+				}
 			}
-			else
-			{
-				OutHeightData.Add(0.0f);
-				ensure(false);
-			}
+
+			// reset the sample error correction to ensure it is at the same column for each row
+			CurrentSampleError.X = 0.0f;
 		}
 	}
+
+	return true;
 }
 
-void ARuntimeLandscape::ReadHeightValuesFromHeightMap(TArray<FColor>& OutHeightColorData) const
+bool ARuntimeLandscape::ReadHeightValuesFromHeightMap(TArray<FSectionData>& OutSectionData) const
 {
 	UE_LOG(LogTemp, Warning, TEXT("ARuntimeLandscape::ReadHeightValuesFromHeightMap is not yet implemented!"));
-	OutHeightColorData.Init(FColor::Black, (MeshResolution.X + 1) * (MeshResolution.Y + 1));
+	return false;
 }
 
 TArray<int32> ARuntimeLandscape::GetSectionsInArea(const FBox2D& Area) const
 {
-	const float SectionSizeX = LandscapeSize.X / SectionAmount.X;
-	const float SectionSizeY = LandscapeSize.Y / SectionAmount.Y;
+	const FVector2D SectionSize = GetSizePerSection();
 
-	const int32 MinColumn = FMath::FloorToInt(Area.Min.X / SectionSizeX);
-	const int32 MaxColumn = FMath::CeilToInt(Area.Max.X / SectionSizeX);
+	const int32 MinColumn = FMath::FloorToInt(Area.Min.X / SectionSize.X);
+	const int32 MaxColumn = FMath::CeilToInt(Area.Max.X / SectionSize.X);
 
-	const int32 MinRow = FMath::FloorToInt(Area.Min.Y / SectionSizeY);
-	const int32 MaxRow = FMath::CeilToInt(Area.Max.Y / SectionSizeY);
+	const int32 MinRow = FMath::FloorToInt(Area.Min.Y / SectionSize.Y);
+	const int32 MaxRow = FMath::CeilToInt(Area.Max.Y / SectionSize.Y);
 
 	TArray<int32> Result;
 	const int32 ExpectedAmount = (MaxColumn - MinColumn) * (MaxRow - MinRow);
@@ -133,11 +218,12 @@ FBox2D ARuntimeLandscape::GetSectionBounds(int32 SectionIndex) const
 		FVector2D((SectionCoordinates.X + 1) * SectionSize.X, (SectionCoordinates.Y + 1) * SectionSize.Y));
 }
 
-FBox2D ARuntimeLandscape::GetLandscapeBounds() const
-{
-	const FVector2D LandscapeHorizontalLocation = FVector2D(GetActorLocation());
-	return FBox2D(FVector2D(GetActorLocation()), LandscapeHorizontalLocation + LandscapeSize);
-}
+//
+// FBox2D ARuntimeLandscape::GetLandscapeBounds() const
+// {
+// 	const FVector2D LandscapeHorizontalLocation = FVector2D(GetActorLocation());
+// 	return FBox2D(FVector2D(GetActorLocation()), LandscapeHorizontalLocation + LandscapeSize);
+// }
 
 void ARuntimeLandscape::GenerateMesh() const
 {
@@ -156,37 +242,51 @@ void ARuntimeLandscape::GenerateMesh() const
 
 void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate) const
 {
-	for (const int32 SectionIndex : SectionsToGenerate)
+	TArray<FSectionData> SectionDataSets = TArray<FSectionData>();
+	const int32 VertexAmountPerSection = GetVertexAmountPerSection();
+
+	for (const int32 Section : SectionsToGenerate)
 	{
-		const FVector2D SectionResolution = MeshResolution / SectionAmount;
-		const FVector2D SectionOffset = GetSectionBounds(SectionIndex).Min;
-		const int32 ExpectedVertexAmount = (SectionResolution.X + 1) * (SectionResolution.Y + 1);
+		SectionDataSets.Add(FSectionData(Section));
+	}
+
+	PrepareHeightValues(SectionDataSets);
+
+	const FVector2D SectionResolution = MeshResolution / SectionAmount;
+
+	for (const FSectionData& SectionData : SectionDataSets)
+	{
+		// ensure the section data is valid
+		if (!ensure(SectionData.HeightValues.Num() == VertexAmountPerSection))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Section %i could not generate valid data and will not be generated!"),
+			       SectionData.SectionIndex);
+			continue;
+		}
+
+		const FVector2D SectionOffset = GetSectionBounds(SectionData.SectionIndex).Min;
 		TArray<FVector> Vertices;
-		Vertices.Reserve(ExpectedVertexAmount);
+		Vertices.Reserve(VertexAmountPerSection);
 		TArray<int32> Triangles;
 		Triangles.Reserve(SectionResolution.X * SectionResolution.Y * 2);
 
 		const FVector2D VertexDistance = LandscapeSize / MeshResolution;
 
-		TArray<float> HeightValues;
-		PrepareHeightValues(HeightValues);
-		if (HeightValues.Num() < ExpectedVertexAmount)
-		{
-			HeightValues.Init(0, ExpectedVertexAmount - HeightValues.Num());
-		}
 
 		int32 VertexIndex = 0;
 		// generate first row of points
 		for (uint32 X = 0; X <= SectionResolution.X; X++)
 		{
-			Vertices.Add(FVector(X * VertexDistance.X + SectionOffset.X, SectionOffset.Y, HeightValues[VertexIndex]));
+			Vertices.Add(FVector(X * VertexDistance.X + SectionOffset.X, SectionOffset.Y,
+			                     SectionData.HeightValues[VertexIndex]));
 			VertexIndex++;
 		}
 
 		for (uint32 Y = 0; Y < SectionResolution.Y; Y++)
 		{
 			const float Y1 = Y + 1;
-			Vertices.Add(FVector(SectionOffset.X, Y1 * VertexDistance.Y + SectionOffset.Y, HeightValues[VertexIndex]));
+			Vertices.Add(FVector(SectionOffset.X, Y1 * VertexDistance.Y + SectionOffset.Y,
+			                     SectionData.HeightValues[VertexIndex]));
 			VertexIndex++;
 
 			// generate triangle strip in X direction
@@ -194,7 +294,7 @@ void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate
 			{
 				Vertices.Add(FVector((X + 1) * VertexDistance.X + SectionOffset.X,
 				                     Y1 * VertexDistance.Y + SectionOffset.Y,
-				                     HeightValues[VertexIndex]));
+				                     SectionData.HeightValues[VertexIndex]));
 				VertexIndex++;
 
 				int32 T1 = Y * (SectionResolution.X + 1) + X;
@@ -214,7 +314,7 @@ void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate
 		}
 
 		// if The vertex amount is differs, something is wrong with the algorithm
-		check(Vertices.Num() == ExpectedVertexAmount);
+		check(Vertices.Num() == VertexAmountPerSection);
 		// if The triangle amount is differs, something is wrong with the algorithm
 		check(Triangles.Num() == SectionResolution.X * SectionResolution.Y * 6);
 
@@ -226,9 +326,9 @@ void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate
 #if WITH_EDITORONLY_DATA
 		if (bEnableDebug && DebugMaterial)
 		{
-			LandscapeMesh->SetMaterial(SectionIndex, DebugMaterial);
+			LandscapeMesh->SetMaterial(SectionData.SectionIndex, DebugMaterial);
 			FIntVector2 SectionCoordinates;
-			GetSectionCoordinates(SectionIndex, SectionCoordinates);
+			GetSectionCoordinates(SectionData.SectionIndex, SectionCoordinates);
 			const bool bIsEvenRow = SectionCoordinates.Y % 2 == 0;
 			const bool bIsEvenColumn = SectionCoordinates.X % 2 == 0;
 			const FColor SectionColor = bIsEvenColumn && bIsEvenRow || !bIsEvenColumn && !bIsEvenRow
@@ -238,7 +338,8 @@ void ARuntimeLandscape::GenerateSections(const TArray<int32>& SectionsToGenerate
 		}
 #endif
 
-		LandscapeMesh->CreateMeshSection(SectionIndex, Vertices, Triangles, Normals, UV0, VertexColors, Tangents,
+		LandscapeMesh->CreateMeshSection(SectionData.SectionIndex, Vertices, Triangles, Normals, UV0, VertexColors,
+		                                 Tangents,
 		                                 false);
 	}
 }

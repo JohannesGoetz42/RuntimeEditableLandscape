@@ -15,6 +15,24 @@ enum class ELandscapeMode : uint8
 	LM_CopyFromLandscape UMETA(DisplayName = "Copy from landscape")
 };
 
+UENUM()
+enum EFlattenMode
+{
+	FM_Minimum UMETA(DisplayName = "Minumum height"),
+	FM_Maximum UMETA(DisplayName = "Maximum height"),
+	FM_Average UMETA(DisplayName = "Average height")
+};
+
+struct FSectionData
+{
+	explicit FSectionData(int32 Section) : SectionIndex(Section)
+	{
+	}
+
+	int32 SectionIndex;
+	TArray<float> HeightValues = TArray<float>();
+};
+
 class UProceduralMeshComponent;
 
 UCLASS()
@@ -27,9 +45,17 @@ public:
 	ARuntimeLandscape();
 
 protected:
+	UPROPERTY(EditAnywhere, Category = "Height data")
+	ELandscapeMode LandscapeMode = ELandscapeMode::LM_HeightMap;
+	UPROPERTY(EditAnywhere, Category = "Height data",
+		meta = (EditCondition="LandscapeMode == ELandscapeMode::LM_HeightMap", EditConditionHides))
+	TObjectPtr<UTexture2D> Heightmap;
 	UPROPERTY(EditAnywhere, Category = "Height data",
 		meta = (EditCondition="LandscapeMode == ELandscapeMode::LM_CopyFromLandscape", EditConditionHides))
 	TObjectPtr<ALandscape> LandscapeToCopyFrom;
+	UPROPERTY(EditAnywhere, Category = "Height data")
+	float HeightScale = 1.0f;
+
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1))
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
@@ -50,12 +76,14 @@ protected:
 	FColor DebugColor2 = FColor::Emerald;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> DebugMaterial;
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
 #endif
 
-	void PrepareHeightValues(TArray<float>& OutHeightValues) const;
-	void ReadHeightValuesFromLandscape(TArray<float>& OutHeightData) const;
-	void ReadHeightValuesFromHeightMap(TArray<FColor>& OutHeightColorData) const;
-	
+	void PrepareHeightValues(TArray<FSectionData>& OutSectionData) const;
+	bool ReadHeightValuesFromLandscape(TArray<FSectionData>& OutSectionData) const;
+	bool ReadHeightValuesFromHeightMap(TArray<FSectionData>& OutSectionData) const;
+
 	virtual void BeginPlay() override;
 
 #if WITH_EDITOR
@@ -73,14 +101,28 @@ protected:
 	TArray<int32> GetSectionsInArea(const FBox2D& Area) const;
 
 	/**
-	 * Get the grid coordinates of the 
+	 * Get the grid coordinates of the specified section
 	 * @param SectionId				The id of the section
 	 * @param OutCoordinateResult	The coordinate result
 	 */
 	void GetSectionCoordinates(int32 SectionId, FIntVector2& OutCoordinateResult) const;
 
 	FBox2D GetSectionBounds(int32 SectionIndex) const;
-	FBox2D GetLandscapeBounds() const;
+
+	/** Get the amount of vertices in a single section */
+	int32 GetVertexAmountPerSection() const
+	{
+		return GetVertexAmountPerSectionRow() * GetVertexAmountPerSectionColumn();
+	}
+	/** Get the amount of vertices in a single section row */
+	FORCEINLINE int32 GetVertexAmountPerSectionRow() const { return MeshResolution.X / SectionAmount.X + 1; }
+	/** Get the amount of vertices in a single section column */
+	FORCEINLINE int32 GetVertexAmountPerSectionColumn() const { return MeshResolution.Y / SectionAmount.Y + 1; }
+
+	/** Get the size of a single section */
+	FORCEINLINE FVector2D GetSizePerSection() const { return LandscapeSize / SectionAmount; }
+
+	//FBox2D GetLandscapeBounds() const;
 	void GenerateMesh() const;
 	void GenerateSections(const TArray<int32>& SectionsToGenerate) const;
 };
