@@ -44,7 +44,8 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 	const FVector2D SectionResolution = ParentLandscape->GetMeshResolution() / ParentLandscape->
 		GetComponentAmount();
 	const TArray<FVector> Normals;
-	const TArray<FVector2D> UV0;
+	TArray<FVector2D> UV0;
+	UV0.Reserve(VertexAmount);
 	const TArray<FProcMeshTangent> Tangents;
 	TArray<float> HeightValues = InitialHeightValues;
 	TArray<FColor> VertexColors;
@@ -58,10 +59,12 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 
 	const FVector2D VertexDistance = ParentLandscape->GetLandscapeSize() / ParentLandscape->GetMeshResolution();
 	int32 VertexIndex = 0;
+	const float UVIncrement = 1 / SectionResolution.X;
 	// generate first row of points
 	for (int32 X = 0; X <= SectionResolution.X; X++)
 	{
 		Vertices.Add(FVector(X * VertexDistance.X, 0, HeightValues[VertexIndex]));
+		UV0.Add(FVector2D(X * UVIncrement, 0));
 		VertexIndex++;
 	}
 
@@ -69,12 +72,14 @@ void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 	{
 		const float Y1 = Y + 1;
 		Vertices.Add(FVector(0, Y1 * VertexDistance.Y, HeightValues[VertexIndex]));
+		UV0.Add(FVector2D(0, Y1 * UVIncrement));
 		VertexIndex++;
 
 		// generate triangle strip in X direction
 		for (int32 X = 0; X < SectionResolution.X; X++)
 		{
 			Vertices.Add(FVector((X + 1) * VertexDistance.X, Y1 * VertexDistance.Y, HeightValues[VertexIndex]));
+			UV0.Add(FVector2D((X + 1) * UVIncrement, Y1 * UVIncrement));
 			VertexIndex++;
 
 			int32 T1 = Y * (SectionResolution.X + 1) + X;
