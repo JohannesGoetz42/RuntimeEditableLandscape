@@ -9,15 +9,15 @@
 class ULandscapeLayerComponent;
 class ALandscape;
 
-UENUM()
-enum class ELandscapeMode : uint8
-{
-	LM_HeightMap UMETA(DisplayName = "Height map"),
-	LM_CopyFromLandscape UMETA(DisplayName = "Copy from landscape")
-};
-
+USTRUCT()
 struct FSectionData
 {
+	GENERATED_BODY()
+
+	FSectionData(): SectionIndex(0)
+	{
+	}
+
 	explicit FSectionData(int32 Section) : SectionIndex(Section)
 	{
 	}
@@ -47,26 +47,10 @@ public:
 	 */
 	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild = true);
 
-	/**
-	 * Updates all sections that were changed by layers
-	 */
-	void UpdateStaleSections()
-	{
-		GenerateSections(StaleSections.Array());
-		StaleSections.Empty();
-	}
-
 protected:
-	UPROPERTY(EditAnywhere, Category = "Height data")
-	ELandscapeMode LandscapeMode = ELandscapeMode::LM_HeightMap;
-	UPROPERTY(EditAnywhere, Category = "Height data",
-		meta = (EditCondition="LandscapeMode == ELandscapeMode::LM_HeightMap", EditConditionHides))
-	TObjectPtr<UTexture2D> Heightmap;
 	UPROPERTY(EditAnywhere, Category = "Height data",
 		meta = (EditCondition="LandscapeMode == ELandscapeMode::LM_CopyFromLandscape", EditConditionHides))
 	TObjectPtr<ALandscape> LandscapeToCopyFrom;
-	UPROPERTY(EditAnywhere, Category = "Height data")
-	float HeightScale = 1.0f;
 
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1))
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
@@ -81,9 +65,11 @@ protected:
 	UPROPERTY(EditAnywhere)
 	TArray<FSectionData> Sections;
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA	
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bEnableDebug;
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bDrawDebugCheckerBoard;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	FColor DebugColor1 = FColor::Blue;
 	UPROPERTY(EditAnywhere, Category = "Debug")
@@ -98,14 +84,21 @@ protected:
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
 
-	void RemoveLandscapeLayer(ULandscapeLayerComponent* Layer)
+	void RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bool bForceRebuild = true)
 	{
-		ActiveLayers.Remove(Layer);
+		for (FSectionData Section : Sections)
+		{
+			Section.AffectingLayers.Remove(Layer);
+			Section.bIsStale = true;
+		}
+		if (bForceRebuild)
+		{
+			GenerateMesh();
+		}
 	}
 
-	void PrepareHeightValues(TArray<FSectionData>& OutSectionData) const;
-	bool ReadHeightValuesFromLandscape(TArray<FSectionData>& OutSectionData) const;
-	bool ReadHeightValuesFromHeightMap(TArray<FSectionData>& OutSectionData) const;
+	void InitializeHeightValues();
+	bool ReadHeightValuesFromLandscape();
 
 	virtual void BeginPlay() override;
 
@@ -146,7 +139,13 @@ protected:
 	/** Get the size of a single section */
 	FORCEINLINE FVector2D GetSizePerSection() const { return LandscapeSize / SectionAmount; }
 
+	void InitializeSections();
 	//FBox2D GetLandscapeBounds() const;
-	void GenerateMesh() const;
-	void GenerateSections(const TArray<int32>& SectionsToGenerate) const;
+	void GenerateDataFromLayers(FSectionData& Section, TArray<FColor>& OutVertexColors);
+	void GenerateMesh();
+	/**
+	 * Generates the sections for the mesh
+	 * @param bFullRebuild		Whether all sections should be generated or only stale ones
+	 */
+	void GenerateSections(bool bFullRebuild = false);
 };

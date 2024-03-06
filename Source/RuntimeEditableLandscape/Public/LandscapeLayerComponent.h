@@ -15,7 +15,15 @@ struct FLandscapeLayerData
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere)
-	FVector2D LayerSize;
+	FVector2D LayerSize = FVector2D::Zero();
+	UPROPERTY(EditAnywhere)
+	bool bApplyHeight = false;
+	UPROPERTY(EditAnywhere)
+	float HeightValue = 0.0f;
+	UPROPERTY(EditAnywhere)
+	bool bApplyVertexColor = false;
+	UPROPERTY(EditAnywhere)
+	FColor VertexColor = FColor::Red;
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
@@ -24,9 +32,6 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeLayerComponent : public UActorCompo
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this component's properties
-	ULandscapeLayerComponent();
-
 	void ApplyToLandscape() const;
 
 	FBox2D GetAffectedArea() const
@@ -41,11 +46,10 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 	/** If true, the layer will be applied after apply to ApplyToLandscape(), otherwise it will be applied on construction */
 	bool bWaitForActivation;
-	UPROPERTY(EditDefaultsOnly)
-	TSharedRef<FLandscapeLayerData> LayerData;
+	UPROPERTY(EditAnywhere)
+	FLandscapeLayerData LayerData;
 
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
-	virtual void DestroyComponent(bool bPromoteChildren) override;
 };
