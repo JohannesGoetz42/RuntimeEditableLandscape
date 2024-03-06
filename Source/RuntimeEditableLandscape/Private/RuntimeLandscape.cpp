@@ -15,6 +15,7 @@ ARuntimeLandscape::ARuntimeLandscape()
 
 void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild)
 {
+	SCOPE_CYCLE_COUNTER(STAT_AddLandscapeLayer);
 	if (!ensure(LayerToAdd))
 	{
 		return;
@@ -36,7 +37,6 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 void ARuntimeLandscape::BeginPlay()
 {
 	Super::BeginPlay();
-	GenerateMesh();
 
 	if (LandscapeToCopyFrom)
 	{
@@ -70,6 +70,11 @@ void ARuntimeLandscape::InitializeHeightValues()
 
 bool ARuntimeLandscape::ReadHeightValuesFromLandscape()
 {
+	if (!LandscapeToCopyFrom)
+	{
+		return false;
+	}
+
 	TArray<float> LandscapeHeightData;
 	int32 SizeX;
 	int32 SizeY;
@@ -198,23 +203,35 @@ bool ARuntimeLandscape::ReadHeightValuesFromLandscape()
 
 TArray<int32> ARuntimeLandscape::GetSectionsInArea(const FBox2D& Area) const
 {
+	const FVector2D ActorHorizontalLocation = FVector2D(GetActorLocation());
 	// check if the area is inside the landscape
-	if (Area.Min.X > GetActorLocation().X + LandscapeSize.X || Area.Min.Y > GetActorLocation().Y + LandscapeSize.Y ||
-		Area.Max.X < GetActorLocation().X || Area.Max.Y < GetActorLocation().Y)
+	if (Area.Min.X > ActorHorizontalLocation.X + LandscapeSize.X || Area.Min.Y > ActorHorizontalLocation.Y +
+		LandscapeSize.Y ||
+		Area.Max.X < ActorHorizontalLocation.X || Area.Max.Y < ActorHorizontalLocation.Y)
 	{
 		return TArray<int32>();
 	}
 
 	const FVector2D SectionSize = GetSizePerSection();
 
-	const int32 MinColumn = FMath::Max(FMath::FloorToInt(Area.Min.X / SectionSize.X), 0);
-	const int32 MaxColumn = FMath::Min(FMath::FloorToInt(Area.Max.X / SectionSize.X), SectionAmount.X - 1);
+	FBox2D RelativeArea = Area;
+	RelativeArea.Min -= ActorHorizontalLocation;
+	RelativeArea.Max -= ActorHorizontalLocation;
 
-	const int32 MinRow = FMath::Max(FMath::FloorToInt(Area.Min.Y / SectionSize.Y), 0);
-	const int32 MaxRow = FMath::Min(FMath::FloorToInt(Area.Max.Y / SectionSize.Y), SectionAmount.Y - 1);
+	const int32 MinColumn = FMath::Max(FMath::FloorToInt(RelativeArea.Min.X / SectionSize.X), 0);
+	const int32 MaxColumn = FMath::Min(FMath::FloorToInt(RelativeArea.Max.X / SectionSize.X), SectionAmount.X - 1);
+
+	const int32 MinRow = FMath::Max(FMath::FloorToInt(RelativeArea.Min.Y / SectionSize.Y), 0);
+	const int32 MaxRow = FMath::Min(FMath::FloorToInt(RelativeArea.Max.Y / SectionSize.Y), SectionAmount.Y - 1);
 
 	TArray<int32> Result;
 	const int32 ExpectedAmount = (MaxColumn - MinColumn + 1) * (MaxRow - MinRow + 1);
+
+	if (!ensure(ExpectedAmount > 0))
+	{
+		return TArray<int32>();
+	}
+
 	Result.Reserve(ExpectedAmount);
 
 	for (int32 Y = MinRow; Y <= MaxRow; Y++)
@@ -311,11 +328,12 @@ void ARuntimeLandscape::GenerateMesh()
 {
 	LandscapeMesh->ClearAllMeshSections();
 	InitializeSections();
-	GenerateSections();
+	GenerateSections(true);
 }
 
 void ARuntimeLandscape::GenerateSections(bool bFullRebuild)
 {
+	SCOPE_CYCLE_COUNTER(STAT_UpdateRuntimeLandscape)
 	const int32 VertexAmountPerSection = GetVertexAmountPerSection();
 	const FIntVector2 SectionResolution = FIntVector2(FMath::FloorToInt(MeshResolution.X / SectionAmount.X),
 	                                                  FMath::FloorToInt(MeshResolution.Y / SectionAmount.Y));
@@ -417,7 +435,7 @@ void ARuntimeLandscape::GenerateSections(bool bFullRebuild)
 
 		LandscapeMesh->CreateMeshSection(Section.SectionIndex, Vertices, Triangles, Normals, UV0, VertexColors,
 		                                 Tangents,
-		                                 false);
+		                                 bUpdateCollision);
 		Section.bIsStale = false;
 	}
 }

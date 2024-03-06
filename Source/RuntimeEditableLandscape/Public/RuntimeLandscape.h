@@ -22,11 +22,15 @@ struct FSectionData
 	{
 	}
 
+	UPROPERTY()
 	int32 SectionIndex;
-	bool bIsStale = true;
+	UPROPERTY()
+	TArray<float> HeightValues = TArray<float>();
+	UPROPERTY()
 	TSet<TObjectPtr<const ULandscapeLayerComponent>> AffectingLayers = TSet<TObjectPtr<const
 		ULandscapeLayerComponent>>();
-	TArray<float> HeightValues = TArray<float>();
+
+	bool bIsStale = false;
 };
 
 class UProceduralMeshComponent;
@@ -57,7 +61,8 @@ protected:
 	//TODO: Ensure MeshResolution is a multiple of SectionAmount
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
 	FVector2D SectionAmount = FVector2D(2.0f, 2.0f);
-
+	UPROPERTY(EditAnywhere, Category = "Performance")
+	bool bUpdateCollision = true;
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UProceduralMeshComponent> LandscapeMesh;
 	UPROPERTY(EditAnywhere)
@@ -138,23 +143,19 @@ protected:
 	 */
 	FVector2D GetVertexLocation(int32 SectionIndex, int32 VertexIndex) const
 	{
-		return FVector2D(GetActorLocation()) + GetSectionLocation(SectionIndex) + GetRelativeLocationOfVertex(
+		return FVector2D(GetActorLocation()) + GetRelativeSectionLocation(SectionIndex) + GetRelativeLocationOfVertex(
 			VertexIndex);
 	}
 
 	/**
-	 * Get the start location of the specified section
+	 * Get the start location of the specified section relative to the actor location
 	 * @param SectionIndex		The index of the section
 	 */
-	FVector2D GetSectionLocation(int32 SectionIndex) const
+	FVector2D GetRelativeSectionLocation(int32 SectionIndex) const
 	{
 		FIntVector2 SectionCoordinates;
 		GetSectionCoordinates(SectionIndex, SectionCoordinates);
-
-		FVector2D SectionOffset = GetSizePerSection();
-		SectionOffset.X *= SectionCoordinates.X;
-		SectionOffset.Y *= SectionCoordinates.Y;
-		return FVector2D(GetActorLocation()) + SectionOffset;
+		return GetSizePerSection() * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
 	}
 
 	/** Get the amount of vertices in a single section */
