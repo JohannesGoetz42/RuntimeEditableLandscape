@@ -36,6 +36,12 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeLayerComponent : public UActorCompo
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(EditDefaultsOnly)
+	/** If true, the layer will be applied after apply to ApplyToLandscape(), otherwise it will be applied on construction */
+	bool bWaitForActivation;
+	UPROPERTY(EditAnywhere)
+	FLandscapeLayerData LayerData;
+
 	void ApplyToLandscape() const;
 	void ApplyLayerData(const FVector2D VertexLocation, float& OutHeightValue, FColor& OutVertexColorValue) const;
 	const TArray<FName>& GetLandscapeTags() const { return LayerData.LandscapeTags; }
@@ -58,12 +64,5 @@ public:
 	}
 
 protected:
-	UPROPERTY(EditDefaultsOnly)
-	/** If true, the layer will be applied after apply to ApplyToLandscape(), otherwise it will be applied on construction */
-	bool bWaitForActivation;
-	UPROPERTY(EditAnywhere)
-	FLandscapeLayerData LayerData;
-
-	// Called when the game starts
 	virtual void BeginPlay() override;
 };

@@ -127,11 +127,8 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	LandscapeToCopyFrom->GetActorBounds(false, ParentOrigin, ParentExtent);
 
 	LandscapeSize = FVector2D(ParentExtent * FVector(2.0f));
-
-	const float ComponentCount = LandscapeToCopyFrom->LandscapeComponents.Num();
-	const float ComponentsX = FMath::Sqrt(ComponentCount) * (LandscapeSize.X / LandscapeSize.Y);
-	const float ComponentsY = ComponentCount / ComponentsX;
-	ComponentAmount = FVector2D(ComponentsX, ComponentsY);
+	const int32 ComponentSize = LandscapeToCopyFrom->ComponentSizeQuads;
+	ComponentAmount = FVector2D(MeshResolution.X / ComponentSize, MeshResolution.Y / ComponentSize);
 
 	// clean up old components but remember existing layers
 	TSet<TObjectPtr<const ULandscapeLayerComponent>> LandscapeLayers;
