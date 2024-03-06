@@ -33,7 +33,7 @@ public:
 	 * NOTE: Requires 'Navigation Mesh->Runtime->Runtime Generation->Dynamic' in the project settings
 	 */
 	uint8 bUpdateNavigation : 1 = 1;
-	
+
 	/**
 	 * Adds a new layer to the landscape
 	 * @param LayerToAdd The added landscape layer
@@ -130,15 +130,18 @@ public:
 	TObjectPtr<UMaterialInterface> LandscapeMaterial;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bEnableDebug;
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug", meta = (EditCondition = "bEnableDebug", EditConditionHides))
 	bool bDrawDebugCheckerBoard;
-	UPROPERTY(EditAnywhere, Category = "Debug", meta = (EditCondition="!bDrawDebugCheckerBoard", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Debug",
+		meta = (EditCondition="bEnableDebug && !bDrawDebugCheckerBoard", EditConditionHides))
 	bool bDrawIndexGreyscales;
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug", meta = (EditCondition = "bEnableDebug", EditConditionHides))
 	bool bShowComponentsWithHole;
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug",
+		meta = (EditCondition = "bEnableDebug && bDrawDebugCheckerBoard", EditConditionHides))
 	FColor DebugColor1 = FColor::Blue;
-	UPROPERTY(EditAnywhere, Category = "Debug")
+	UPROPERTY(EditAnywhere, Category = "Debug",
+		meta = (EditCondition = "bEnableDebug && bDrawDebugCheckerBoard", EditConditionHides))
 	FColor DebugColor2 = FColor::Emerald;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> DebugMaterial;

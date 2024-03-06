@@ -86,20 +86,21 @@ void ULandscapeLayerComponent::SetBoundsComponent(UPrimitiveComponent* NewBounds
 
 	BoundsComponent = NewBoundsComponent;
 	Extent = BoundsComponent->Bounds.BoxExtent;
+	UpdateShape();
 }
 
 void ULandscapeLayerComponent::UpdateShape()
 {
 	const FVector Origin = BoundsComponent ? BoundsComponent->GetComponentLocation() : GetOwner()->GetActorLocation();
 
-	float BoundsSmoothingOffset = 0;
-	float InnerSmoothingOffset = 0;
 	switch (SmoothingDirection)
 	{
 	case SD_Inwards:
 		InnerSmoothingOffset = SmoothingDistance;
+		BoundsSmoothingOffset = 0.0f;
 		break;
 	case SD_Outwards:
+		InnerSmoothingOffset = 0.0f;
 		BoundsSmoothingOffset = SmoothingDistance;
 		break;
 	case SD_Center:
@@ -108,6 +109,15 @@ void ULandscapeLayerComponent::UpdateShape()
 		break;
 	default:
 		checkNoEntry();
+	}
+
+	// ensure the inner offset is smaller than the inner bounds
+	if (SmoothingDirection != SD_Outwards)
+	{
+		const float MaxOffset = Shape == ELayerShape::HS_Sphere
+			                        ? Radius - 0.001f
+			                        : FMath::Min(Extent.X, Extent.Y) - 0.001f;
+		InnerSmoothingOffset = FMath::Clamp(InnerSmoothingOffset, 0.0f, MaxOffset);
 	}
 
 	if (Shape == ELayerShape::HS_Sphere)
@@ -124,26 +134,13 @@ void ULandscapeLayerComponent::UpdateShape()
 	BoxSphereBounds = BoxSphereBounds.TransformBy(Transform);
 
 	BoundingBox = FBox2D(FVector2D(Origin - BoxSphereBounds.BoxExtent), FVector2D(Origin + BoxSphereBounds.BoxExtent));
-	DrawDebugBox(GetWorld(), Origin, FVector(BoundingBox.GetExtent(), Extent.Z), FColor::Green, false, 10.0f);
 
 	InnerBox.Min = FVector2D(Origin - Extent) + InnerSmoothingOffset;
 	InnerBox.Max = FVector2D(Origin + Extent) - InnerSmoothingOffset;
-	FQuat Rotation = BoundsComponent ? BoundsComponent->GetComponentQuat() : GetOwner()->GetActorQuat();
-	DrawDebugBox(GetWorld(), Origin, FVector(InnerBox.GetExtent(), Extent.Z), Rotation, FColor::Blue, false, 10.0f);
-	FVector2D Test(Extent + BoundsSmoothingOffset);
-	DrawDebugBox(GetWorld(), Origin, FVector(Test, Extent.Z), Rotation, FColor::Cyan, false, 10.0f);
 }
 
 bool ULandscapeLayerComponent::TryCalculateSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location) const
 {
-	float SmoothingOffset = 0.0f;
-	if (SmoothingDirection != ESmoothingDirection::SD_Outwards)
-	{
-		SmoothingOffset = SmoothingDirection == ESmoothingDirection::SD_Center
-			                  ? SmoothingDistance * 0.5f
-			                  : SmoothingDistance;
-	}
-
 	const FVector2D Origin = FVector2D(BoundsComponent
 		                                   ? BoundsComponent->GetComponentLocation()
 		                                   : GetOwner()->GetActorLocation());
@@ -153,7 +150,7 @@ bool ULandscapeLayerComponent::TryCalculateSmoothingFactor(float& OutSmoothingFa
 		return TryCalculateBoxSmoothingFactor(OutSmoothingFactor, Location, Origin);
 
 	case ELayerShape::HS_Sphere:
-		return TryCalculateSphereSmoothingFactor(OutSmoothingFactor, Location, Origin, SmoothingOffset);
+		return TryCalculateSphereSmoothingFactor(OutSmoothingFactor, Location, Origin);
 	default:
 		checkNoEntry();
 	}
@@ -180,16 +177,16 @@ bool ULandscapeLayerComponent::TryCalculateBoxSmoothingFactor(float& OutSmoothin
 }
 
 bool ULandscapeLayerComponent::TryCalculateSphereSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location,
-                                                                 FVector2D Origin, float SmoothingOffset) const
+                                                                 FVector2D Origin) const
 {
-	const float OuterRadiusSquared = FMath::Square(Radius + SmoothingOffset);
-	const float DistanceSqr = (Origin - Location).SizeSquared();
+	const float OuterRadiusSquared = FMath::Square(Radius + BoundsSmoothingOffset);
+	const float DistanceSqr = (Location - Origin).SizeSquared();
 	if (DistanceSqr >= OuterRadiusSquared)
 	{
 		return false;
 	}
 
-	const float InnerRadiusSqr = FMath::Square(Radius - SmoothingOffset);
+	const float InnerRadiusSqr = FMath::Square(Radius - InnerSmoothingOffset);
 	if (DistanceSqr < InnerRadiusSqr)
 	{
 		OutSmoothingFactor = 0.0f;
@@ -197,10 +194,11 @@ bool ULandscapeLayerComponent::TryCalculateSphereSmoothingFactor(float& OutSmoot
 	else
 	{
 		check(SmoothingDistance > 0.0f);
-		OutSmoothingFactor = (DistanceSqr - InnerRadiusSqr) / FMath::Square(SmoothingDistance);
+		const float Distance = FMath::Abs(FMath::Sqrt(DistanceSqr) - (Radius - InnerSmoothingOffset));
+		OutSmoothingFactor = Distance / SmoothingDistance;
+		check(OutSmoothingFactor >= 0.0f && OutSmoothingFactor <= 1.0f);
 	}
 
-	ensure(OutSmoothingFactor >= 0.0f && OutSmoothingFactor <= 1.0f);
 	return true;
 }
 
@@ -230,7 +228,6 @@ void ULandscapeLayerComponent::RemoveFromLandscapes()
 	}
 }
 
-// Called when the game starts
 void ULandscapeLayerComponent::BeginPlay()
 {
 	Super::BeginPlay();

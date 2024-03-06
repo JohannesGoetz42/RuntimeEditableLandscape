@@ -57,7 +57,7 @@ public:
 	/** Whether smoothing is applied inwards or outwards*/
 	TEnumAsByte<ESmoothingDirection> SmoothingDirection = ESmoothingDirection::SD_Inwards;
 	UPROPERTY(EditAnywhere, Category = "Smoothing", meta = (ClampMin = 0.0f))
-	/** The distance in which the layer effect fades out (extends the Owner's bounds) */
+	/** The distance in which the layer effect fades out */
 	float SmoothingDistance = 200.0f;
 	UPROPERTY(EditDefaultsOnly)
 	/** If true, the layer will be applied after apply to ApplyToLandscape(), otherwise it will be applied on construction */
@@ -122,6 +122,8 @@ protected:
 	FBox2D BoundingBox = FBox2D();
 	/** The affected box without smoothing */
 	FBox2D InnerBox = FBox2D();
+	float BoundsSmoothingOffset = 0.0f;
+	float InnerSmoothingOffset = 0.0f;
 
 	/**
 	 * Try to calculate the smootong distance
@@ -131,8 +133,8 @@ protected:
 	 */
 	bool TryCalculateSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location) const;
 	bool TryCalculateBoxSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location, FVector2D Origin) const;
-	bool TryCalculateSphereSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location, FVector2D Origin,
-	                                       float SmoothingOffset) const;
+	bool TryCalculateSphereSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location,
+	                                       FVector2D Origin) const;
 
 	void HandleBoundsChanged(USceneComponent* SceneComponent, EUpdateTransformFlags UpdateTransformFlags,
 	                         ETeleportType Teleport);
