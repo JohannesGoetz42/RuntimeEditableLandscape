@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LandscapeHole.h"
 #include "ProceduralMeshComponent.h"
 #include "RuntimeLandscapeComponent.generated.h"
 
@@ -41,14 +42,23 @@ public:
 
 	FVector2D GetRelativeVertexLocation(int32 VertexIndex) const;
 
+	void AddHole(TObjectPtr<const ALandscapeHole> Hole);
+	void RemoveHole(TObjectPtr<const ALandscapeHole> Hole);
+	void UpdateHoles();
+
 protected:
 	UPROPERTY()
+	TSet<TObjectPtr<const ALandscapeHole>> Holes = TSet<TObjectPtr<const ALandscapeHole>>();
+	UPROPERTY()
 	TArray<float> InitialHeightValues = TArray<float>();
+	UPROPERTY()
+	/** All vertices that are inside at least one hole */
+	TArray<int32> VerticesInHole = TArray<int32>();
 	UPROPERTY()
 	TSet<TObjectPtr<const ULandscapeLayerComponent>> AffectingLayers = TSet<TObjectPtr<const
 		ULandscapeLayerComponent>>();
 	UPROPERTY()
-	const ARuntimeLandscape* ParentLandscape;
+	TObjectPtr<ARuntimeLandscape> ParentLandscape;
 	UPROPERTY()
 	int32 Index;
 	UPROPERTY()

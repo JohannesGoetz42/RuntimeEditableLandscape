@@ -4,6 +4,7 @@
 #include "RuntimeLandscape.h"
 
 #include "Landscape.h"
+#include "LandscapeHole.h"
 #include "LandscapeLayerComponent.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
@@ -28,9 +29,9 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 	SCOPE_CYCLE_COUNTER(STAT_AddLandscapeLayer);
 	if (ensure(LayerToAdd))
 	{
-		for (const int32 AffectedSectionIndex : GetComponentsInArea(LayerToAdd->GetAffectedArea(true)))
+		for (URuntimeLandscapeComponent* Component : GetComponentsInArea(LayerToAdd->GetAffectedArea(true)))
 		{
-			LandscapeComponents[AffectedSectionIndex]->AddLandscapeLayer(LayerToAdd, bForceRebuild);
+			Component->AddLandscapeLayer(LayerToAdd, bForceRebuild);
 		}
 	}
 }
@@ -55,7 +56,7 @@ void ARuntimeLandscape::RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bo
 	}
 }
 
-TArray<int32> ARuntimeLandscape::GetComponentsInArea(const FBox2D& Area) const
+TArray<URuntimeLandscapeComponent*> ARuntimeLandscape::GetComponentsInArea(const FBox2D& Area) const
 {
 	const FVector2D StartLocation = FVector2D(LandscapeComponents[0]->GetComponentLocation());
 	// check if the area is inside the landscape
@@ -63,7 +64,7 @@ TArray<int32> ARuntimeLandscape::GetComponentsInArea(const FBox2D& Area) const
 		LandscapeSize.Y ||
 		Area.Max.X < StartLocation.X || Area.Max.Y < StartLocation.Y)
 	{
-		return TArray<int32>();
+		return TArray<URuntimeLandscapeComponent*>();
 	}
 
 	FBox2D RelativeArea = Area;
@@ -76,12 +77,12 @@ TArray<int32> ARuntimeLandscape::GetComponentsInArea(const FBox2D& Area) const
 	const int32 MinRow = FMath::Max(FMath::FloorToInt(RelativeArea.Min.Y / ComponentSize), 0);
 	const int32 MaxRow = FMath::Min(FMath::FloorToInt(RelativeArea.Max.Y / ComponentSize), ComponentAmount.Y - 1);
 
-	TArray<int32> Result;
+	TArray<URuntimeLandscapeComponent*> Result;
 	const int32 ExpectedAmount = (MaxColumn - MinColumn + 1) * (MaxRow - MinRow + 1);
 
 	if (!ensure(ExpectedAmount > 0))
 	{
-		return TArray<int32>();
+		return TArray<URuntimeLandscapeComponent*>();
 	}
 
 	Result.Reserve(ExpectedAmount);
@@ -91,7 +92,7 @@ TArray<int32> ARuntimeLandscape::GetComponentsInArea(const FBox2D& Area) const
 		const int32 RowOffset = Y * ComponentAmount.X;
 		for (int32 X = MinColumn; X <= MaxColumn; X++)
 		{
-			Result.Add(RowOffset + X);
+			Result.Add(LandscapeComponents[RowOffset + X]);
 		}
 	}
 
@@ -145,12 +146,13 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	FVector ParentOrigin;
 	FVector ParentExtent;
 	ParentLandscape->GetActorBounds(false, ParentOrigin, ParentExtent);
-
 	LandscapeSize = FVector2D(ParentExtent * FVector(2.0f));
 	const int32 ComponentSizeQuads = ParentLandscape->ComponentSizeQuads;
 	QuadSideLength = ParentExtent.X * 2 / MeshResolution.X;
 	ComponentSize = ComponentSizeQuads * QuadSideLength;
 	ComponentAmount = FVector2D(MeshResolution.X / ComponentSizeQuads, MeshResolution.Y / ComponentSizeQuads);
+	ComponentResolution = MeshResolution / ComponentAmount;
+
 	VertexAmountPerComponent.X = MeshResolution.X / ComponentAmount.X + 1;
 	VertexAmountPerComponent.Y = MeshResolution.Y / ComponentAmount.Y + 1;
 
@@ -223,7 +225,12 @@ void ARuntimeLandscape::PreInitializeComponents()
 void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	if (PropertyChangedEvent.MemberProperty->GetName() == FName("ParentLandscape"))
+
+	const TSet<FString> InitLandscapeProperties = TSet<FString>({
+		"ParentLandscape", "bEnableDebug", "bDrawDebugCheckerBoard", "bDrawIndexGreyscales", "DebugColor1",
+		"DebugColor2", "DebugMaterial", "HoleActors"
+	});
+	if (InitLandscapeProperties.Contains(PropertyChangedEvent.MemberProperty->GetName()))
 	{
 		InitializeFromLandscape();
 	}
@@ -239,9 +246,10 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	{
 		for (URuntimeLandscapeComponent* Component : LandscapeComponents)
 		{
-			Component->SetMaterial(0, LandscapeMaterial);
+			Component->SetMaterial(0, bEnableDebug && DebugMaterial ? DebugMaterial : LandscapeMaterial);
 		}
 	}
+
 	if (PropertyChangedEvent.MemberProperty->GetName() == FName("BodyInstance") || PropertyChangedEvent.MemberProperty->
 		GetName() == FName("bGenerateOverlapEvents"))
 	{

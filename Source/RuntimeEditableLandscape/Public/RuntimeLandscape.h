@@ -48,6 +48,7 @@ public:
 	FORCEINLINE const FVector2D& GetLandscapeSize() const { return LandscapeSize; }
 	FORCEINLINE const FVector2D& GetMeshResolution() const { return MeshResolution; }
 	FORCEINLINE const FVector2D& GetComponentAmount() const { return ComponentAmount; }
+	FORCEINLINE const FVector2D& GetComponentResolution() const { return ComponentResolution; }
 	FORCEINLINE float GetQuadSideLength() const { return QuadSideLength; }
 	FORCEINLINE float GetParentHeight() const { return ParentHeight; }
 
@@ -59,7 +60,7 @@ public:
 	 * 10	11	12	13	14
 	 * 15	16	17	18	19
 	 */
-	TArray<int32> GetComponentsInArea(const FBox2D& Area) const;
+	TArray<URuntimeLandscapeComponent*> GetComponentsInArea(const FBox2D& Area) const;
 
 	/**
 	 * Get the grid coordinates of the specified component
@@ -77,6 +78,9 @@ public:
 	FBox2D GetComponentBounds(int32 SectionIndex) const;
 
 protected:
+	UPROPERTY(EditAnywhere)
+	/** The base for scaling landscape height (8 bit?) */
+	int32 HeightValueBits = 7;
 	UPROPERTY()
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY()
@@ -84,13 +88,12 @@ protected:
 	//TODO: Ensure MeshResolution is a multiple of ComponentAmount
 	UPROPERTY()
 	FVector2D ComponentAmount = FVector2D(2.0f, 2.0f);
+	UPROPERTY()
+	FVector2D ComponentResolution;
 	UPROPERTY(EditAnywhere, Category = "Performance")
 	bool bUpdateCollision = true;
 	UPROPERTY()
 	TArray<TObjectPtr<URuntimeLandscapeComponent>> LandscapeComponents;
-	UPROPERTY(EditAnywhere)
-	/** The base for scaling landscape height (8 bit?) */
-	int32 HeightValueBits = 7;
 	UPROPERTY()
 	float HeightScale = 1.0f;
 	UPROPERTY()
@@ -123,6 +126,8 @@ public:
 	bool bDrawDebugCheckerBoard;
 	UPROPERTY(EditAnywhere, Category = "Debug", meta = (EditCondition="!bDrawDebugCheckerBoard", EditConditionHides))
 	bool bDrawIndexGreyscales;
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bShowComponentsWithHole;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	FColor DebugColor1 = FColor::Blue;
 	UPROPERTY(EditAnywhere, Category = "Debug")
