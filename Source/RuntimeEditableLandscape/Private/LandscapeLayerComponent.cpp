@@ -39,6 +39,7 @@ void ULandscapeLayerComponent::ApplyLayerData(const FVector2D VertexLocation, fl
 	{
 		const float SquaredDistance = GetAffectedArea(false).ComputeSquaredDistanceToPoint(VertexLocation);
 		SmoothingFactor = SquaredDistance / FMath::Square(LayerData.SmoothingDistance);
+		SmoothingFactor = FMath::Clamp(SmoothingFactor, 0.0f, 1.0f);
 	}
 
 	if (LayerData.bApplyHeight)
