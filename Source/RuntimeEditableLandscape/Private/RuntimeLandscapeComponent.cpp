@@ -30,9 +30,17 @@ void URuntimeLandscapeComponent::Initialize(int32 ComponentIndex, const TArray<f
 	}
 }
 
+FVector2D URuntimeLandscapeComponent::GetRelativeVertexLocation(int32 VertexIndex) const
+{
+	FIntVector2 Coordinates;
+	ParentLandscape->GetVertexCoordinatesWithinComponent(VertexIndex, Coordinates);
+	return FVector2D(Coordinates.X * ParentLandscape->GetQuadSideLength(),
+	                 Coordinates.Y * ParentLandscape->GetQuadSideLength());
+}
+
 void URuntimeLandscapeComponent::Rebuild(bool bUpdateCollision)
 {
-	const int32 VertexAmount = ParentLandscape->GetVertexAmountPerSection();
+	const int32 VertexAmount = ParentLandscape->GetTotalVertexAmountPerComponent();
 	// ensure the section data is valid
 	if (!ensure(InitialHeightValues.Num() == VertexAmount))
 	{
@@ -147,7 +155,8 @@ void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightVal
 	{
 		for (int32 i = 0; i < InitialHeightValues.Num(); i++)
 		{
-			Layer->ApplyLayerData(ParentLandscape->GetVertexLocation(Index, i), OutHeightValues[i], OutVertexColors[i]);
+			Layer->ApplyLayerData(GetRelativeVertexLocation(i) + FVector2D(GetComponentLocation()), OutHeightValues[i],
+			                      OutVertexColors[i]);
 		}
 	}
 }

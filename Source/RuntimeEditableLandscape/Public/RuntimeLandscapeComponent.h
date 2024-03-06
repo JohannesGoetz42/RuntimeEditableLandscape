@@ -39,6 +39,8 @@ public:
 		return AffectingLayers;
 	}
 
+	FVector2D GetRelativeVertexLocation(int32 VertexIndex) const;
+
 protected:
 	UPROPERTY()
 	TArray<float> InitialHeightValues = TArray<float>();

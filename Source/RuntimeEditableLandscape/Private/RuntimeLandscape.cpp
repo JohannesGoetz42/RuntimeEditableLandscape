@@ -6,6 +6,7 @@
 #include "Landscape.h"
 #include "LandscapeLayerComponent.h"
 #include "RuntimeEditableLandscape.h"
+#include "RuntimeLandscapeComponent.h"
 #include "Chaos/HeightField.h"
 
 ARuntimeLandscape::ARuntimeLandscape()
@@ -47,28 +48,34 @@ void ARuntimeLandscape::HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActo
 	}
 }
 
+void ARuntimeLandscape::RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bool bForceRebuild)
+{
+	for (URuntimeLandscapeComponent* LandscapeComponent : LandscapeComponents)
+	{
+		LandscapeComponent->RemoveLandscapeLayer(Layer, bForceRebuild);
+	}
+}
+
 TArray<int32> ARuntimeLandscape::GetComponentsInArea(const FBox2D& Area) const
 {
-	const FVector2D ActorHorizontalLocation = FVector2D(GetActorLocation());
+	const FVector2D StartLocation = FVector2D(LandscapeComponents[0]->GetComponentLocation());
 	// check if the area is inside the landscape
-	if (Area.Min.X > ActorHorizontalLocation.X + LandscapeSize.X || Area.Min.Y > ActorHorizontalLocation.Y +
+	if (Area.Min.X > StartLocation.X + LandscapeSize.X || Area.Min.Y > StartLocation.Y +
 		LandscapeSize.Y ||
-		Area.Max.X < ActorHorizontalLocation.X || Area.Max.Y < ActorHorizontalLocation.Y)
+		Area.Max.X < StartLocation.X || Area.Max.Y < StartLocation.Y)
 	{
 		return TArray<int32>();
 	}
 
-	const FVector2D SectionSize = GetSizePerComponent();
-
 	FBox2D RelativeArea = Area;
-	RelativeArea.Min -= ActorHorizontalLocation;
-	RelativeArea.Max -= ActorHorizontalLocation;
+	RelativeArea.Min -= StartLocation;
+	RelativeArea.Max -= StartLocation;
 
-	const int32 MinColumn = FMath::Max(FMath::FloorToInt(RelativeArea.Min.X / SectionSize.X), 0);
-	const int32 MaxColumn = FMath::Min(FMath::FloorToInt(RelativeArea.Max.X / SectionSize.X), ComponentAmount.X - 1);
+	const int32 MinColumn = FMath::Max(FMath::FloorToInt(RelativeArea.Min.X / ComponentSize), 0);
+	const int32 MaxColumn = FMath::Min(FMath::FloorToInt(RelativeArea.Max.X / ComponentSize), ComponentAmount.X - 1);
 
-	const int32 MinRow = FMath::Max(FMath::FloorToInt(RelativeArea.Min.Y / SectionSize.Y), 0);
-	const int32 MaxRow = FMath::Min(FMath::FloorToInt(RelativeArea.Max.Y / SectionSize.Y), ComponentAmount.Y - 1);
+	const int32 MinRow = FMath::Max(FMath::FloorToInt(RelativeArea.Min.Y / ComponentSize), 0);
+	const int32 MaxRow = FMath::Min(FMath::FloorToInt(RelativeArea.Max.Y / ComponentSize), ComponentAmount.Y - 1);
 
 	TArray<int32> Result;
 	const int32 ExpectedAmount = (MaxColumn - MinColumn + 1) * (MaxRow - MinRow + 1);
@@ -93,10 +100,17 @@ TArray<int32> ARuntimeLandscape::GetComponentsInArea(const FBox2D& Area) const
 	return Result;
 }
 
-void ARuntimeLandscape::GetComponentCoordinates(int32 SectionId, FIntVector2& OutCoordinateResult) const
+void ARuntimeLandscape::GetComponentCoordinates(int32 SectionIndex, FIntVector2& OutCoordinateResult) const
 {
-	OutCoordinateResult.X = SectionId % FMath::RoundToInt(ComponentAmount.X);
-	OutCoordinateResult.Y = FMath::FloorToInt(SectionId / ComponentAmount.X);
+	OutCoordinateResult.X = SectionIndex % FMath::RoundToInt(ComponentAmount.X);
+	OutCoordinateResult.Y = FMath::FloorToInt(SectionIndex / ComponentAmount.X);
+}
+
+void ARuntimeLandscape::GetVertexCoordinatesWithinComponent(int32 VertexIndex, FIntVector2& OutCoordinateResult) const
+{
+	OutCoordinateResult.X = VertexIndex % VertexAmountPerComponent.X;
+	OutCoordinateResult.Y = FMath::FloorToInt(
+		static_cast<float>(VertexIndex) / static_cast<float>(VertexAmountPerComponent.Y));
 }
 
 FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
@@ -126,15 +140,17 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	const FIntRect Rect = LandscapeToCopyFrom->GetBoundingRect();
 	MeshResolution.X = Rect.Max.X - Rect.Min.X;
 	MeshResolution.Y = Rect.Max.Y - Rect.Min.Y;
-
 	FVector ParentOrigin;
 	FVector ParentExtent;
 	LandscapeToCopyFrom->GetActorBounds(false, ParentOrigin, ParentExtent);
 
 	LandscapeSize = FVector2D(ParentExtent * FVector(2.0f));
 	const int32 ComponentSizeQuads = LandscapeToCopyFrom->ComponentSizeQuads;
-	ComponentSize = ComponentSizeQuads * (ParentExtent.X * 2 / MeshResolution.X);
+	QuadSideLength = ParentExtent.X * 2 / MeshResolution.X;
+	ComponentSize = ComponentSizeQuads * QuadSideLength;
 	ComponentAmount = FVector2D(MeshResolution.X / ComponentSizeQuads, MeshResolution.Y / ComponentSizeQuads);
+	VertexAmountPerComponent.X = MeshResolution.X / ComponentAmount.X + 1;
+	VertexAmountPerComponent.Y = MeshResolution.Y / ComponentAmount.Y + 1;
 
 	// clean up old components but remember existing layers
 	TSet<TObjectPtr<const ULandscapeLayerComponent>> LandscapeLayers;
@@ -149,7 +165,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 
 	// create landscape components
 	LandscapeComponents.SetNumUninitialized(LandscapeToCopyFrom->CollisionComponents.Num());
-	const int32 VertexAmountPerSection = GetVertexAmountPerSection();
+	const int32 VertexAmountPerSection = GetTotalVertexAmountPerComponent();
 
 	for (const ULandscapeHeightfieldCollisionComponent* LandscapeCollision : LandscapeToCopyFrom->CollisionComponents)
 	{
