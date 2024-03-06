@@ -34,38 +34,49 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 void ARuntimeLandscape::GenerateMesh() const
 {
 	TArray<FVector> Vertices;
+	Vertices.Reserve((MeshResolution.X + 1) * (MeshResolution.Y + 1));
 	TArray<int32> Triangles;
-	Vertices.Reserve(2 * MeshResolution.X * MeshResolution.Y);
+	Triangles.Reserve(MeshResolution.X * MeshResolution.Y * 2);
 
-	const int32 CurrentRow = 0;
 	const FVector2D VertexDistance = LandscapeSize / MeshResolution;
-	int32 TriangleCount = 0;
 
-	// generate first two points
-	Vertices.Add(FVector(0, 0, 0.0f));
-	Vertices.Add(FVector(0, VertexDistance.Y, 0.0f));
-
-	// generate mesh columns
-	for (uint32 X = 0; X < MeshResolution.X; X++)
+	// generate first row of points
+	for (uint32 X = 0; X <= MeshResolution.X; X++)
 	{
-		Vertices.Add(FVector((X + 1) * VertexDistance.X, CurrentRow * VertexDistance.Y, 0.0f));
-		// add triangles counter clockwise for correct normals
-		Triangles.Add(TriangleCount);
-		Triangles.Add(TriangleCount + 1);
-		Triangles.Add(TriangleCount + 2);
-		TriangleCount++;
+		Vertices.Add(FVector(X * VertexDistance.X, 0, 0.0f));
+	}
 
-		Vertices.Add(FVector((X + 1) * VertexDistance.X, (CurrentRow + 1) * VertexDistance.Y, 0.0f));
-		// add triangles counter clockwise for correct normals
-		Triangles.Add(TriangleCount);
-		Triangles.Add(TriangleCount + 2);
-		Triangles.Add(TriangleCount + 1);
-		TriangleCount++;
+	for (uint32 Y = 0; Y < MeshResolution.Y; Y++)
+	{
+		const float Y1 = Y + 1;
+		Vertices.Add(FVector(0, Y1 * VertexDistance.Y, 0.0f));
+
+		// generate triangle strip in X direction
+		for (uint32 X = 0; X < MeshResolution.X; X++)
+		{
+			Vertices.Add(FVector((X + 1) * VertexDistance.X, Y1 * VertexDistance.Y, 0.0f));
+
+			int32 T1 = Y * (MeshResolution.X + 1) + X;
+			int32 T2 = T1 + MeshResolution.X + 1;
+			int32 T3 = T1 + 1;
+
+			// add upper-left triangle
+			Triangles.Add(T1);
+			Triangles.Add(T2);
+			Triangles.Add(T3);
+
+			// add lower-right triangle
+			Triangles.Add(T3);
+			Triangles.Add(T2);
+			Triangles.Add(T2 + 1);
+		}
 	}
 
 	// if The vertex amount is differs, something is wrong with the algorithm
-	check(Vertices.Num() == 2 * MeshResolution.X + 2);
-	
+	check(Vertices.Num() == (MeshResolution.X + 1) * (MeshResolution.Y + 1));
+	// if The triangle amount is differs, something is wrong with the algorithm
+	check(Triangles.Num() == MeshResolution.X * MeshResolution.Y * 6);
+
 	const TArray<FVector> Normals;
 	const TArray<FVector2D> UV0;
 	const TArray<FColor> VertexColors;
