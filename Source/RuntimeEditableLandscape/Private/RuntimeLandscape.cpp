@@ -128,7 +128,23 @@ void ARuntimeLandscape::GenerateMesh() const
 
 	const TArray<FVector> Normals;
 	const TArray<FVector2D> UV0;
-	const TArray<FColor> VertexColors;
+	TArray<FColor> VertexColors;
+
+#if WITH_EDITORONLY_DATA
+	if (bEnableDebug && DebugMaterial)
+	{
+		LandscapeMesh->SetMaterial(0, DebugMaterial);
+		const int32 RowIndex = SectionIndex % FMath::RoundToInt(SectionAmount.X);
+		const int32 ColumnIndex = SectionIndex - RowIndex * SectionAmount.X;
+		const bool bIsEvenRow = RowIndex % 2 == 0;
+		const bool bIsEvenColumn = ColumnIndex % 2 == 0;
+		const FColor SectionColor = bIsEvenColumn && bIsEvenRow || !bIsEvenColumn && !bIsEvenRow
+			                            ? DebugColor1
+			                            : DebugColor2;
+		VertexColors.Init(SectionColor, Vertices.Num());
+	}
+#endif
+
 	const TArray<FProcMeshTangent> Tangents;
 	LandscapeMesh->CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, false);
 }

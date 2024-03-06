@@ -26,6 +26,16 @@ protected:
 	FVector2D SectionAmount = FVector2D(10.0f, 10.0f);
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UProceduralMeshComponent> LandscapeMesh;
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bEnableDebug;
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	FColor DebugColor1 = FColor::Blue;
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	FColor DebugColor2 = FColor::Emerald;
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	TObjectPtr<UMaterial> DebugMaterial;
+#endif
 
 	void PrepareHeightValues(TArray<float>& OutHeightValues) const;
 	// Called when the game starts or when spawned
