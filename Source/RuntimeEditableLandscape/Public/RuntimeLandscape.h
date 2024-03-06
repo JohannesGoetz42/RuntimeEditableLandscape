@@ -20,8 +20,10 @@ public:
 protected:
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 1))
 	FVector2D LandscapeSize = FVector2D(100, 100);
-	UPROPERTY(EditAnywhere, meta = (ClampMin = 1))
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
 	FVector2D MeshResolution = FVector2D(5, 5);
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 1, FixedIncrement = 1))
+	FVector2D SectionAmount = FVector2D(10.0f, 10.0f);
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UProceduralMeshComponent> LandscapeMesh;
 
@@ -32,7 +34,16 @@ protected:
 	inline static const TSet<FString> MeshGenerationAffectingProperties = {"LandscapeSize", "MeshResolution"};
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
-	
 
+	/**
+	 * Get the ids for the secions contained in the specified area
+	 * Sections are numbered like this (i.e SectionAmount = 4x4):
+	 * 0	1	2	3	4
+	 * 5	6	7	8	9
+	 * 10	11	12	13	14
+	 * 15	16	17	18	19
+	 */
+	TArray<int32> GetSectionIdsInArea(const FBox2D& Area) const;
+	
 	void GenerateMesh() const;
 };

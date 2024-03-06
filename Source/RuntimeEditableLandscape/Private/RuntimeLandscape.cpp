@@ -31,6 +31,34 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 }
 #endif
 
+TArray<int32> ARuntimeLandscape::GetSectionIdsInArea(const FBox2D& Area) const
+{
+	const float SectionSizeX = LandscapeSize.X / SectionAmount.X;
+	const float SectionSizeY = LandscapeSize.Y / SectionAmount.Y;
+
+	const int32 MinColumn = FMath::FloorToInt(Area.Min.X / SectionSizeX);
+	const int32 MaxColumn = FMath::CeilToInt(Area.Max.X / SectionSizeX);
+
+	const int32 MinRow = FMath::FloorToInt(Area.Min.Y / SectionSizeY);
+	const int32 MaxRow = FMath::CeilToInt(Area.Max.Y / SectionSizeY);
+
+	TArray<int32> Result;
+	const int32 ExpectedAmount = (MaxColumn - MinColumn) * (MaxRow - MinRow);
+	Result.Reserve(ExpectedAmount);
+
+	for (int32 Y = MinRow; Y <= MaxRow; Y++)
+	{
+		const int32 RowOffset = Y * SectionAmount.X;
+		for (int32 X = MinColumn; X <= MaxColumn; X++)
+		{
+			Result.Add(RowOffset + X);
+		}
+	}
+
+	check(Result.Num() == ExpectedAmount);
+	return Result;
+}
+
 void ARuntimeLandscape::GenerateMesh() const
 {
 	TArray<FVector> Vertices;
