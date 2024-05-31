@@ -176,7 +176,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 
 	for (const ULandscapeHeightfieldCollisionComponent* LandscapeCollision : ParentLandscape->CollisionComponents)
 	{
-		const TUniquePtr<Chaos::FHeightField>& HeightField = LandscapeCollision->HeightfieldRef->Heightfield;
+		Chaos::FHeightFieldPtr HeightField = LandscapeCollision->HeightfieldRef->HeightfieldGeometry;
 		TArray<float> HeightValues = TArray<float>();
 		HeightValues.Reserve(VertexAmountPerSection);
 		for (int32 i = 0; i < VertexAmountPerSection; i++)
