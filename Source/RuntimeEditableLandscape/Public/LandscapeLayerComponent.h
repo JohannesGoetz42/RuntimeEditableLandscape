@@ -141,8 +141,11 @@ protected:
 	void RemoveFromLandscapes();
 	void UpdateShape();
 
+	UFUNCTION()
+	void HandleOwnerDestroyed(AActor* DestroyedActor) { DestroyComponent(); }
+
 	virtual void BeginPlay() override;
-	virtual void DestroyComponent(bool bPromoteChildren) override;
+	virtual void DestroyComponent(bool bPromoteChildren = false) override;
 
 #if WITH_EDITORONLY_DATA
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;

@@ -31,6 +31,11 @@ void ULandscapeLayerComponent::ApplyToLandscape()
 		GetOwner()->GetRootComponent()->TransformUpdated.AddUObject(
 			this, &ULandscapeLayerComponent::HandleBoundsChanged);
 	}
+
+	if(GetOwner())
+	{
+		GetOwner()->OnDestroyed.AddUniqueDynamic(this, &ULandscapeLayerComponent::HandleOwnerDestroyed);
+	}	
 }
 
 void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent,

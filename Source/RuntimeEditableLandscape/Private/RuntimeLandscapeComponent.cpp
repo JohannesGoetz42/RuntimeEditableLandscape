@@ -151,7 +151,7 @@ void URuntimeLandscapeComponent::Rebuild()
 				if (ParentLandscape->bShowComponentsWithHole)
 				{
 					for (const ULandscapeLayerComponent* Layer : AffectingLayers)
-					{ 
+					{
 						if (Layer->GetLayerData().Contains(ELandscapeLayerType::LLT_Hole))
 						{
 							SectionColor = FColor::Red;
