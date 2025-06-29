@@ -175,7 +175,7 @@ void URuntimeLandscapeComponent::Rebuild()
 
 	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0, Normals, Tangents);
 	CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, ParentLandscape->bUpdateCollision);
-	UpdateFoliage();
+	RemoveFoliageAffectedByLayer();
 	UpdateNavigation();
 
 	bIsStale = false;
@@ -208,31 +208,40 @@ void URuntimeLandscapeComponent::UpdateNavigation()
 	}
 }
 
-void URuntimeLandscapeComponent::UpdateFoliage() const
+void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 {
 	AInstancedFoliageActor* Foliage = ParentLandscape->FoliageActor;
 	if (!Foliage)
 	{
 		return;
 	}
-	
+
 	FBox Bounds = GetLocalBounds().GetBox();
 	Bounds = Bounds.MoveTo(GetComponentLocation() + Bounds.GetExtent());
 	Bounds = Bounds.ExpandBy(FVector(0.0f, 0.0f, 10000.0f));
-
-	DrawDebugBox(GetWorld(), Bounds.GetCenter(), Bounds.GetExtent(), FColor::Magenta, false, 30.0f);
 
 	for (const auto& FoliageInfo : Foliage->GetFoliageInfos())
 	{
 		TArray<int32> Instances;
 		UHierarchicalInstancedStaticMeshComponent* FoliageComp = FoliageInfo.Value->GetComponent();
 
+		TArray<int32> FoliageToRemove;
 		for (int32 Instance : FoliageComp->GetInstancesOverlappingBox(Bounds))
 		{
 			FTransform InstanceTransform;
 			FoliageComp->GetInstanceTransform(Instance, InstanceTransform, true);
-			DrawDebugCapsule(GetWorld(), InstanceTransform.GetLocation(), 500.0f, 20.0f,
-			                 InstanceTransform.GetRotation(), FColor::Magenta, false, 20.0f);
+			FVector2D InstanceLocation = FVector2D(InstanceTransform.GetLocation());
+
+			for (const ULandscapeLayerComponent* Layer : AffectingLayers)
+			{
+				if (Layer->IsAffectedByLayer(InstanceLocation))
+				{
+					FoliageToRemove.Add(Instance);
+					break;
+				}
+			}
 		}
+
+		FoliageComp->RemoveInstances(FoliageToRemove);
 	}
 }

@@ -17,9 +17,9 @@ void ULandscapeLayerComponent::ApplyToLandscape()
 		       *GetOwner()->GetName());
 	}
 
-	for (AActor* LandscapeActor : AffectedLandscapes)
+	for (ARuntimeLandscape* LandscapeActor : AffectedLandscapes)
 	{
-		Cast<ARuntimeLandscape>(LandscapeActor)->AddLandscapeLayer(this);
+		LandscapeActor->AddLandscapeLayer(this);
 	}
 
 	if (BoundsComponent)
@@ -38,13 +38,18 @@ void ULandscapeLayerComponent::ApplyToLandscape()
 	}
 }
 
+bool ULandscapeLayerComponent::IsAffectedByLayer(FVector2D Location) const
+{
+	return GetBoundingBox().IsInside(Location);
+}
+
 void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent,
                                               float& OutHeightValue,
                                               FColor& OutVertexColorValue) const
 {
 	const FVector2D VertexLocation = LandscapeComponent->GetRelativeVertexLocation(VertexIndex) + FVector2D(
 		LandscapeComponent->GetComponentLocation());
-	if (!GetBoundingBox().IsInside(VertexLocation))
+	if (!IsAffectedByLayer(VertexLocation))
 	{
 		return;
 	}

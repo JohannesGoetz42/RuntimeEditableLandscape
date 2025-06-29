@@ -69,6 +69,7 @@ public:
 	FORCEINLINE const FBox2D& GetBoundingBox() const { return BoundingBox; }
 
 	void ApplyToLandscape();
+	bool IsAffectedByLayer(FVector2D Location) const;
 	void ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent, float& OutHeightValue,
 	                    FColor& OutVertexColorValue) const;
 
@@ -126,7 +127,7 @@ protected:
 	float InnerSmoothingOffset = 0.0f;
 
 	/**
-	 * Try to calculate the smootong distance
+	 * Try to calculate the smoothing distance
 	 * @param OutSmoothingFactor the resulting smoothing factor
 	 * @param Location the location to calculate the distance to  
 	 * @return true if the location is affected
