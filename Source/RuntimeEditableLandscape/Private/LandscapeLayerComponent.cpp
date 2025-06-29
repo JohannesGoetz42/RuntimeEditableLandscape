@@ -32,10 +32,10 @@ void ULandscapeLayerComponent::ApplyToLandscape()
 			this, &ULandscapeLayerComponent::HandleBoundsChanged);
 	}
 
-	if(GetOwner())
+	if (GetOwner())
 	{
 		GetOwner()->OnDestroyed.AddUniqueDynamic(this, &ULandscapeLayerComponent::HandleOwnerDestroyed);
-	}	
+	}
 }
 
 void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent,
@@ -96,6 +96,11 @@ void ULandscapeLayerComponent::SetBoundsComponent(UPrimitiveComponent* NewBounds
 
 void ULandscapeLayerComponent::UpdateShape()
 {
+	if (!BoundsComponent && !GetOwner())
+	{
+		return;
+	}
+
 	const FVector Origin = BoundsComponent ? BoundsComponent->GetComponentLocation() : GetOwner()->GetActorLocation();
 
 	switch (SmoothingDirection)
