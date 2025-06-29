@@ -73,4 +73,5 @@ protected:
 	void Rebuild();
 	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
 	void UpdateNavigation();
+	void UpdateFoliage() const;
 };

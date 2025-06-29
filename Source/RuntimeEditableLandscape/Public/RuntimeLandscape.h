@@ -125,6 +125,8 @@ protected:
 public:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<ALandscape> ParentLandscape;
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<AInstancedFoliageActor> FoliageActor;
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UMaterialInterface> LandscapeMaterial;

@@ -31,7 +31,8 @@ public class RuntimeEditableLandscape : ModuleRules
 				"ProceduralMeshComponent",
 				"Landscape",
 				"Chaos",
-				"NavigationSystem"
+				"NavigationSystem",
+				"Foliage"
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);

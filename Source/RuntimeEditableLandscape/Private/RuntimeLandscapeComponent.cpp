@@ -8,6 +8,7 @@
 #include "NavigationSystem.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscape.h"
+#include "Runtime/Foliage/Public/InstancedFoliageActor.h"
 
 void URuntimeLandscapeComponent::AddLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)
 {
@@ -174,6 +175,7 @@ void URuntimeLandscapeComponent::Rebuild()
 
 	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0, Normals, Tangents);
 	CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, ParentLandscape->bUpdateCollision);
+	UpdateFoliage();
 	UpdateNavigation();
 
 	bIsStale = false;
@@ -202,6 +204,35 @@ void URuntimeLandscapeComponent::UpdateNavigation()
 		if (const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
 		{
 			NavSys->UpdateComponentInNavOctree(*this);
+		}
+	}
+}
+
+void URuntimeLandscapeComponent::UpdateFoliage() const
+{
+	AInstancedFoliageActor* Foliage = ParentLandscape->FoliageActor;
+	if (!Foliage)
+	{
+		return;
+	}
+	
+	FBox Bounds = GetLocalBounds().GetBox();
+	Bounds = Bounds.MoveTo(GetComponentLocation() + Bounds.GetExtent());
+	Bounds = Bounds.ExpandBy(FVector(0.0f, 0.0f, 10000.0f));
+
+	DrawDebugBox(GetWorld(), Bounds.GetCenter(), Bounds.GetExtent(), FColor::Magenta, false, 30.0f);
+
+	for (const auto& FoliageInfo : Foliage->GetFoliageInfos())
+	{
+		TArray<int32> Instances;
+		UHierarchicalInstancedStaticMeshComponent* FoliageComp = FoliageInfo.Value->GetComponent();
+
+		for (int32 Instance : FoliageComp->GetInstancesOverlappingBox(Bounds))
+		{
+			FTransform InstanceTransform;
+			FoliageComp->GetInstanceTransform(Instance, InstanceTransform, true);
+			DrawDebugCapsule(GetWorld(), InstanceTransform.GetLocation(), 500.0f, 20.0f,
+			                 InstanceTransform.GetRotation(), FColor::Magenta, false, 20.0f);
 		}
 	}
 }
