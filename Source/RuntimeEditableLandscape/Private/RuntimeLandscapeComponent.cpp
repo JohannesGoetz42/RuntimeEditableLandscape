@@ -126,9 +126,9 @@ void URuntimeLandscapeComponent::Rebuild()
 		}
 	}
 
-	// if The vertex amount is differs, something is wrong with the algorithm
+	// if The vertex amount differs, something is wrong with the algorithm
 	check(Vertices.Num() == VertexAmount);
-	// if The triangle amount is differs, something is wrong with the algorithm
+	// if The triangle amount differs, something is wrong with the algorithm
 	//check(Triangles.Num() == SectionResolution.X * SectionResolution.Y * 6);
 
 #if WITH_EDITORONLY_DATA
@@ -210,7 +210,7 @@ void URuntimeLandscapeComponent::UpdateNavigation()
 
 void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 {
-	AInstancedFoliageActor* Foliage = ParentLandscape->FoliageActor;
+	const AInstancedFoliageActor* Foliage = ParentLandscape->GetFoliageActor();
 	if (!Foliage)
 	{
 		return;

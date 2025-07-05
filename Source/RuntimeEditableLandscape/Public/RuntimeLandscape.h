@@ -61,6 +61,7 @@ public:
 	FORCEINLINE const FVector2D& GetComponentResolution() const { return ComponentResolution; }
 	FORCEINLINE float GetQuadSideLength() const { return QuadSideLength; }
 	FORCEINLINE float GetParentHeight() const { return ParentHeight; }
+	FORCEINLINE const AInstancedFoliageActor* GetFoliageActor() const { return FoliageActor; }
 
 	/**
 	 * Get the ids for the sections contained in the specified area
@@ -93,6 +94,8 @@ protected:
 	int32 HeightValueBits = 7;
 	UPROPERTY(EditAnywhere)
 	uint8 bCanEverAffectNavigation : 1 = 1;
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<AInstancedFoliageActor> FoliageActor;
 	UPROPERTY()
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY()
@@ -125,8 +128,6 @@ protected:
 public:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<ALandscape> ParentLandscape;
-	UPROPERTY(EditAnywhere)
-	TObjectPtr<AInstancedFoliageActor> FoliageActor;
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UMaterialInterface> LandscapeMaterial;
