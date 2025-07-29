@@ -22,6 +22,9 @@ At the moment this plugin is a work in Progress. There is some functionality ava
 ### Edit the Landscape at runtime
 To edit the landscape, you can place `Landscape layer actors` in the world and adjust the parameters in the `Landscape layer component`. You can also add this component to your own actors.
 
+### Landscape material layers
+You can use landscape paint layers on your runtime landscape. Layers are converted to Render Targets which can be blended in your landscape material, use the `MF_BlendRuntimeLandscapeLayers` Material function. Layer coordinates are extracted from the UV1 Channel.
+
 ### Holes
 Holes in the parent Landscape (i.E. for cave entries) are not used, however holes can be added with `Landcape Layers` (see [Edit the Landscape at runtime](###edit-the-landscape-at-runtime))
 

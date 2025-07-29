@@ -8,8 +8,9 @@
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
 #include "Chaos/HeightField.h"
+#include "Kismet/KismetRenderingLibrary.h"
 
-ARuntimeLandscape::ARuntimeLandscape()
+ARuntimeLandscape::ARuntimeLandscape() : Super()
 {
 	RootComponent = CreateDefaultSubobject<USceneComponent>("Root component");
 
@@ -124,6 +125,23 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 }
 
 #if WITH_EDITORONLY_DATA
+void ARuntimeLandscape::BakeLandscapeLayers()
+{
+	for (const auto& Layer : ParentLandscape->GetTargetLayers())
+	{
+		if (UTextureRenderTarget2D* RenderTarget = LanscapePaintLayers.FindRef(Layer.Key))
+		{
+			RenderTarget->SizeX = FMath::RoundToInt(PaintLayerResolution * LandscapeSize.X);
+			RenderTarget->SizeY = FMath::RoundToInt(PaintLayerResolution * LandscapeSize.Y);
+			
+			FBox2D Box2D = FBox2D();
+			Box2D.Min = FVector2D(0.0f, 0.0f);
+			Box2D.Max = LandscapeSize;
+			ParentLandscape->RenderWeightmap(GetActorTransform(), Box2D, Layer.Key, RenderTarget);
+		}
+	}
+}
+
 void ARuntimeLandscape::InitializeFromLandscape()
 {
 	if (!ParentLandscape)
@@ -135,7 +153,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	{
 		LandscapeMaterial = ParentLandscape->LandscapeMaterial;
 	}
-
+	
 	HeightScale = ParentLandscape->GetActorScale().Z / FMath::Pow(2.0f, HeightValueBits);
 	ParentHeight = ParentLandscape->GetActorLocation().Z;
 
@@ -154,6 +172,8 @@ void ARuntimeLandscape::InitializeFromLandscape()
 
 	VertexAmountPerComponent.X = MeshResolution.X / ComponentAmount.X + 1;
 	VertexAmountPerComponent.Y = MeshResolution.Y / ComponentAmount.Y + 1;
+
+	BakeLandscapeLayers();
 
 	// clean up old components but remember existing layers
 	TSet<TObjectPtr<const ULandscapeLayerComponent>> LandscapeLayers;
@@ -189,6 +209,8 @@ void ARuntimeLandscape::InitializeFromLandscape()
 		LandscapeComponent->SetWorldLocation(LandscapeCollision->GetComponentLocation());
 		LandscapeComponent->SetMaterial(0, LandscapeMaterial);
 		LandscapeComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
+		LandscapeComponent->SetCastShadow(bCastShadow);
+		LandscapeComponent->SetAffectDistanceFieldLighting(bAffectDistanceFieldLighting);
 
 		LandscapeComponent->BodyInstance = FBodyInstance();
 		LandscapeComponent->BodyInstance.CopyBodyInstancePropertiesFrom(&ParentLandscape->BodyInstance);
@@ -228,7 +250,7 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 
 	const TSet<FString> InitLandscapeProperties = TSet<FString>({
 		"ParentLandscape", "bEnableDebug", "bDrawDebugCheckerBoard", "bDrawIndexGreyscales", "DebugColor1",
-		"DebugColor2", "DebugMaterial", "HoleActors"
+		"DebugColor2", "DebugMaterial", "HoleActors", "bCastShadow", "bAffectDistanceFieldLighting"
 	});
 	if (InitLandscapeProperties.Contains(PropertyChangedEvent.MemberProperty->GetName()))
 	{

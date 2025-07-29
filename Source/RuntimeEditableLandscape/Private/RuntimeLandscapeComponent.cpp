@@ -62,10 +62,19 @@ void URuntimeLandscapeComponent::Rebuild()
 		return;
 	}
 
+	FIntVector2 SectionCoordinates;
+	ParentLandscape->GetComponentCoordinates(Index, SectionCoordinates);
+
 	const FVector2D ComponentResolution = ParentLandscape->GetComponentResolution();
+
+	const FVector2D UV1Scale = FVector2D::One() / ParentLandscape->GetComponentAmount();
+	const FVector2D UV1Offset = UV1Scale * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
+
 	TArray<FVector> Normals;
-	TArray<FVector2D> UV0;
-	UV0.Reserve(VertexAmount);
+	TArray<FVector2D> UV0Coords;
+	TArray<FVector2D> UV1Coords;
+	UV0Coords.Reserve(VertexAmount);
+	UV1Coords.Reserve(VertexAmount);
 	TArray<FProcMeshTangent> Tangents;
 	TArray<float> HeightValues = InitialHeightValues;
 	TArray<FColor> VertexColors;
@@ -84,7 +93,9 @@ void URuntimeLandscapeComponent::Rebuild()
 	for (int32 X = 0; X <= ComponentResolution.X; X++)
 	{
 		Vertices.Add(FVector(X * VertexDistance, 0, HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
-		UV0.Add(FVector2D(X * UVIncrement, 0));
+		const FVector2D UV0 = FVector2D(X * UVIncrement, 0);
+		UV0Coords.Add(UV0);
+		UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
 		VertexIndex++;
 	}
 
@@ -92,7 +103,10 @@ void URuntimeLandscapeComponent::Rebuild()
 	{
 		const float Y1 = Y + 1;
 		Vertices.Add(FVector(0, Y1 * VertexDistance, HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
-		UV0.Add(FVector2D(0, Y1 * UVIncrement));
+
+		FVector2D UV0 = FVector2D(0, Y1 * UVIncrement);
+		UV0Coords.Add(UV0);
+		UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
 		VertexIndex++;
 
 		// generate triangle strip in X direction
@@ -100,7 +114,11 @@ void URuntimeLandscapeComponent::Rebuild()
 		{
 			Vertices.Add(FVector((X + 1) * VertexDistance, Y1 * VertexDistance,
 			                     HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
-			UV0.Add(FVector2D((X + 1) * UVIncrement, Y1 * UVIncrement));
+
+			UV0 = FVector2D((X + 1) * UVIncrement, Y1 * UVIncrement);
+			UV0Coords.Add(UV0);
+			UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
+
 			VertexIndex++;
 
 			int32 T1 = Y * (ComponentResolution.X + 1) + X;
@@ -139,8 +157,6 @@ void URuntimeLandscapeComponent::Rebuild()
 
 		if (ParentLandscape->bDrawDebugCheckerBoard || ParentLandscape->bDrawIndexGreyscales)
 		{
-			FIntVector2 SectionCoordinates;
-			ParentLandscape->GetComponentCoordinates(Index, SectionCoordinates);
 			const bool bIsEvenRow = SectionCoordinates.Y % 2 == 0;
 			const bool bIsEvenColumn = SectionCoordinates.X % 2 == 0;
 			FColor SectionColor = FColor::White;
@@ -173,8 +189,10 @@ void URuntimeLandscapeComponent::Rebuild()
 	}
 #endif
 
-	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0, Normals, Tangents);
-	CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, ParentLandscape->bUpdateCollision);
+	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0Coords, Normals, Tangents);
+	CreateMeshSection(0, Vertices, Triangles, Normals, UV0Coords, UV1Coords, UV0Coords, UV0Coords, VertexColors,
+	                  Tangents,
+	                  ParentLandscape->bUpdateCollision);
 	RemoveFoliageAffectedByLayer();
 	UpdateNavigation();
 
@@ -216,9 +234,9 @@ void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 		return;
 	}
 
-	FBox Bounds = GetLocalBounds().GetBox();
-	Bounds = Bounds.MoveTo(GetComponentLocation() + Bounds.GetExtent());
-	Bounds = Bounds.ExpandBy(FVector(0.0f, 0.0f, 10000.0f));
+	FBox MyBounds = GetLocalBounds().GetBox();
+	MyBounds = MyBounds.MoveTo(GetComponentLocation() + MyBounds.GetExtent());
+	MyBounds = MyBounds.ExpandBy(FVector(0.0f, 0.0f, 10000.0f));
 
 	for (const auto& FoliageInfo : Foliage->GetFoliageInfos())
 	{
@@ -226,7 +244,7 @@ void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 		UHierarchicalInstancedStaticMeshComponent* FoliageComp = FoliageInfo.Value->GetComponent();
 
 		TArray<int32> FoliageToRemove;
-		for (int32 Instance : FoliageComp->GetInstancesOverlappingBox(Bounds))
+		for (int32 Instance : FoliageComp->GetInstancesOverlappingBox(MyBounds))
 		{
 			FTransform InstanceTransform;
 			FoliageComp->GetInstanceTransform(Instance, InstanceTransform, true);

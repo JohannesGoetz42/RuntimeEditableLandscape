@@ -12,7 +12,7 @@ class ALandscape;
 
 class UProceduralMeshComponent;
 
-UCLASS()
+UCLASS(Blueprintable, BlueprintType)
 class RUNTIMEEDITABLELANDSCAPE_API ARuntimeLandscape : public AActor
 {
 	GENERATED_BODY()
@@ -128,6 +128,10 @@ protected:
 public:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<ALandscape> ParentLandscape;
+	UPROPERTY(EditAnywhere, Category = "Lighting")
+	uint8 bCastShadow : 1 = 1;
+	UPROPERTY(EditAnywhere, Category = "Lighting", meta = (EditCondition = "bCastShadow"))
+	uint8 bAffectDistanceFieldLighting : 1 = 1;
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UMaterialInterface> LandscapeMaterial;
@@ -148,8 +152,16 @@ public:
 	FColor DebugColor2 = FColor::Emerald;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> DebugMaterial;
+	UPROPERTY(EditAnywhere)
+	float PaintLayerResolution = 0.01f; 
+	UPROPERTY(EditAnywhere)
+	TMap<FName, UTextureRenderTarget2D*> LanscapePaintLayers;
 
+	UFUNCTION(BlueprintCallable)
+	void BakeLandscapeLayers();
+	UFUNCTION(BlueprintCallable)
 	void InitializeFromLandscape();
+	
 	virtual void PreInitializeComponents() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
