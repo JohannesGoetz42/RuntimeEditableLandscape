@@ -7,6 +7,7 @@
 #include "RuntimeLandscapeComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "LayerTypes/LandscapeLayerDataBase.h"
 
 void ULandscapeLayerComponent::ApplyToLandscape()
 {
@@ -57,28 +58,9 @@ void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandsca
 	float SmoothingFactor;
 	if (TryCalculateSmoothingFactor(SmoothingFactor, VertexLocation))
 	{
-		for (const auto& Layer : LayerData)
+		for (const ULandscapeLayerDataBase* Layer : Layers)
 		{
-			switch (Layer.Key)
-			{
-			case ELandscapeLayerType::LLT_Height:
-				OutHeightValue = FMath::Lerp(Layer.Value.FloatValue + GetOwner()->GetActorLocation().Z, OutHeightValue,
-				                             SmoothingFactor);
-				break;
-			case ELandscapeLayerType::LLT_VertexColor:
-				OutVertexColorValue = FLinearColor::LerpUsingHSV(Layer.Value.ColorValue, OutVertexColorValue,
-				                                                 SmoothingFactor).ToFColor(false);
-				break;
-			case ELandscapeLayerType::LLT_Hole:
-				if (Layer.Value.bBoolValue || SmoothingFactor == 0.0f)
-				{
-					LandscapeComponent->SetHoleFlagForVertex(VertexIndex, true);
-				}
-				break;
-			case ELandscapeLayerType::LLT_None:
-			default:
-				break;
-			}
+			Layer->Apply(LandscapeComponent, this, VertexIndex, OutHeightValue, OutVertexColorValue, SmoothingFactor);
 		}
 	}
 }

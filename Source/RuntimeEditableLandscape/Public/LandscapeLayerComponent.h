@@ -7,6 +7,7 @@
 #include "LandscapeLayerComponent.generated.h"
 
 
+class ULandscapeLayerDataBase;
 class URuntimeLandscapeComponent;
 class ARuntimeLandscape;
 
@@ -19,32 +20,10 @@ enum ESmoothingDirection : uint8
 };
 
 UENUM()
-enum ELandscapeLayerType : uint8
-{
-	LLT_None UMETA(DisplayName = "None"),
-	LLT_Height UMETA(DisplayName = "Height"),
-	LLT_VertexColor UMETA(DisplayName = "Vertex color"),
-	LLT_Hole UMETA(DisplayName = "Hole")
-};
-
-UENUM()
 enum ELayerShape : uint8
 {
 	HS_Box UMETA(DisplayName = "Box"),
 	HS_Sphere UMETA(DisplayName = "Sphere")
-};
-
-USTRUCT()
-struct FLandscapeLayerData
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere)
-	float FloatValue = 0.0f;
-	UPROPERTY(EditAnywhere)
-	FColor ColorValue = FColor::White;
-	UPROPERTY(EditAnywhere)
-	bool bBoolValue = false;
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
@@ -67,39 +46,19 @@ public:
 	FORCEINLINE float GetRadius() const { return Radius; }
 	FORCEINLINE const FVector& GetExtent() const { return Extent; }
 	FORCEINLINE const FBox2D& GetBoundingBox() const { return BoundingBox; }
+	FORCEINLINE const TSet<const ULandscapeLayerDataBase*>& GetLayerData() const { return Layers; }
 
 	void ApplyToLandscape();
 	bool IsAffectedByLayer(FVector2D Location) const;
 	void ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent, float& OutHeightValue,
 	                    FColor& OutVertexColorValue) const;
-
-	void SetHeightLayerData(float HeightData)
-	{
-		FLandscapeLayerData& LayerDataWithType = LayerData.FindOrAdd(ELandscapeLayerType::LLT_Height);
-		LayerDataWithType.FloatValue = HeightData;
-	}
-
-	void SetVertexColorLayerData(FColor ColorValue)
-	{
-		FLandscapeLayerData& LayerDataWithType = LayerData.FindOrAdd(ELandscapeLayerType::LLT_VertexColor);
-		LayerDataWithType.ColorValue = ColorValue;
-	}
-
-	void SetHoleLayerData(bool bIsHole)
-	{
-		FLandscapeLayerData& LayerDataWithType = LayerData.FindOrAdd(ELandscapeLayerType::LLT_Hole);
-		LayerDataWithType.bBoolValue = bIsHole;
-	}
-
 	void SetBoundsComponent(UPrimitiveComponent* NewBoundsComponent);
-
-	const TMap<TEnumAsByte<ELandscapeLayerType>, FLandscapeLayerData>& GetLayerData() const { return LayerData; }
 
 protected:
 	UPROPERTY(EditAnywhere)
 	TSet<TObjectPtr<ARuntimeLandscape>> AffectedLandscapes;
-	UPROPERTY(EditAnywhere)
-	TMap<TEnumAsByte<ELandscapeLayerType>, FLandscapeLayerData> LayerData;
+	UPROPERTY(EditAnywhere, Instanced)
+	TSet<const ULandscapeLayerDataBase*> Layers;
 	UPROPERTY(EditAnywhere, meta = (EditCondition = "BoundsComponent == nullptr"))
 	/**
 	 * The shape of the layer

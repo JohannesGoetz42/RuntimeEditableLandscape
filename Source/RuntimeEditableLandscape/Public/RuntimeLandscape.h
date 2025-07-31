@@ -117,7 +117,7 @@ protected:
 	UPROPERTY()
 	float QuadSideLength;
 	UPROPERTY()
-	float ParentHeight;
+	float ParentHeight;	
 
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);

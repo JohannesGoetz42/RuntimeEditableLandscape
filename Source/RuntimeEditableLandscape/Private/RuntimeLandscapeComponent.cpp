@@ -8,6 +8,8 @@
 #include "NavigationSystem.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscape.h"
+#include "LayerTypes/LandscapeHoleLayerData.h"
+#include "LayerTypes/LandscapeLayerDataBase.h"
 #include "Runtime/Foliage/Public/InstancedFoliageActor.h"
 
 void URuntimeLandscapeComponent::AddLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)
@@ -169,10 +171,13 @@ void URuntimeLandscapeComponent::Rebuild()
 				{
 					for (const ULandscapeLayerComponent* Layer : AffectingLayers)
 					{
-						if (Layer->GetLayerData().Contains(ELandscapeLayerType::LLT_Hole))
+						for (const ULandscapeLayerDataBase* LayerData : Layer->GetLayerData())
 						{
-							SectionColor = FColor::Red;
-							break;
+							if (LayerData->IsA<ULandscapeHoleLayerData>())
+							{
+								SectionColor = FColor::Red;
+								break;
+							}
 						}
 					}
 				}
