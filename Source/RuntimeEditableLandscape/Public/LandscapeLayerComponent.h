@@ -40,7 +40,10 @@ public:
 	/** The distance in which the layer effect fades out */
 	float SmoothingDistance = 200.0f;
 	UPROPERTY(EditDefaultsOnly)
-	/** If true, the layer will be applied after apply to ApplyToLandscape(), otherwise it will be applied on construction */
+	/** If true, the layer will be applied after apply to ApplyToLandscape(), otherwise it will be applied on construction
+	 *
+	 * Call @anchor ApplyToLandscape to activate it in your code!
+	 */
 	bool bWaitForActivation;
 
 	FORCEINLINE ELayerShape GetShape() const { return Shape; }
