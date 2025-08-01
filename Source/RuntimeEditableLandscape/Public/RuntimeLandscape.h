@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "RuntimeLandscape.generated.h"
 
+enum ELayerShape : uint8;
 class URuntimeLandscapeComponent;
 class ULandscapeLayerComponent;
 class ALandscape;
@@ -62,6 +63,11 @@ public:
 	FORCEINLINE float GetQuadSideLength() const { return QuadSideLength; }
 	FORCEINLINE float GetParentHeight() const { return ParentHeight; }
 	FORCEINLINE const AInstancedFoliageActor* GetFoliageActor() const { return FoliageActor; }
+	FORCEINLINE const TMap<TEnumAsByte<ELayerShape>, UMaterialInterface*>& GetGroundTypeBrushes() const
+	{
+		return GroundTypeBrushes;
+	}
+
 
 	/**
 	 * Get the ids for the sections contained in the specified area
@@ -99,6 +105,8 @@ protected:
 	TObjectPtr<AInstancedFoliageActor> FoliageActor;
 	UPROPERTY(EditAnywhere)
 	TArray<ULandscapeGroundTypeData*> GroundTypes;
+	UPROPERTY(EditAnywhere)
+	TMap<TEnumAsByte<ELayerShape>, UMaterialInterface*> GroundTypeBrushes;
 	UPROPERTY()
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY()
@@ -127,8 +135,7 @@ protected:
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
 
-	virtual void OnConstruction(const FTransform& Transform) override;
-
+	virtual void PostLoad() override;
 #if WITH_EDITORONLY_DATA
 
 public:
@@ -164,5 +171,16 @@ public:
 
 	virtual void PreInitializeComponents() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override
+	{
+		if (EndPlayReason == EEndPlayReason::Type::EndPlayInEditor)
+		{
+			BakeLandscapeLayers();
+		}
+
+		Super::EndPlay(EndPlayReason);
+	}
+
 #endif
 };

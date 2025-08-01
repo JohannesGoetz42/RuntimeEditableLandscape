@@ -60,20 +60,24 @@ void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandsca
 	{
 		for (const ULandscapeLayerDataBase* Layer : Layers)
 		{
-			Layer->ApplyToVertices(LandscapeComponent, this, VertexIndex, OutHeightValue, OutVertexColorValue, SmoothingFactor);
+			Layer->ApplyToVertices(LandscapeComponent, this, VertexIndex, OutHeightValue, OutVertexColorValue,
+			                       SmoothingFactor);
 		}
 	}
 }
 
 void ULandscapeLayerComponent::SetBoundsComponent(UPrimitiveComponent* NewBoundsComponent)
 {
-	if (NewBoundsComponent->IsA<USphereComponent>())
+	if (Shape == ELayerShape::HS_Default)
 	{
-		Shape = ELayerShape::HS_Sphere;
-	}
-	else
-	{
-		Shape = ELayerShape::HS_Box;
+		if (NewBoundsComponent->IsA<USphereComponent>())
+		{
+			Shape = ELayerShape::HS_Round;
+		}
+		else
+		{
+			Shape = ELayerShape::HS_Box;
+		}
 	}
 
 	BoundsComponent = NewBoundsComponent;
@@ -111,13 +115,13 @@ void ULandscapeLayerComponent::UpdateShape()
 	// ensure the inner offset is smaller than the inner bounds
 	if (SmoothingDirection != SD_Outwards)
 	{
-		const float MaxOffset = Shape == ELayerShape::HS_Sphere
+		const float MaxOffset = Shape == ELayerShape::HS_Round
 			                        ? Radius - 0.001f
 			                        : FMath::Min(Extent.X, Extent.Y) - 0.001f;
 		InnerSmoothingOffset = FMath::Clamp(InnerSmoothingOffset, 0.0f, MaxOffset);
 	}
 
-	if (Shape == ELayerShape::HS_Sphere)
+	if (Shape == ELayerShape::HS_Round)
 	{
 		BoundingBox = FBox2D(FVector2D(Origin - BoundsSmoothingOffset - Radius),
 		                     FVector2D(Origin + BoundsSmoothingOffset + Radius));
@@ -146,7 +150,7 @@ bool ULandscapeLayerComponent::TryCalculateSmoothingFactor(float& OutSmoothingFa
 	case ELayerShape::HS_Box:
 		return TryCalculateBoxSmoothingFactor(OutSmoothingFactor, Location, Origin);
 
-	case ELayerShape::HS_Sphere:
+	case ELayerShape::HS_Round:
 		return TryCalculateSphereSmoothingFactor(OutSmoothingFactor, Location, Origin);
 	default:
 		checkNoEntry();
@@ -282,7 +286,7 @@ void ULandscapeLayerComponent::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		{
 			BoundsComponent->TransformUpdated.AddUObject(this, &ULandscapeLayerComponent::HandleBoundsChanged);
 		}
-		else
+		else if (GetOwner() && GetOwner()->GetRootComponent())
 		{
 			GetOwner()->GetRootComponent()->TransformUpdated.AddUObject(
 				this, &ULandscapeLayerComponent::HandleBoundsChanged);

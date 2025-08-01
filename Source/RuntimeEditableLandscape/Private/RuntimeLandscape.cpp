@@ -17,7 +17,7 @@ ARuntimeLandscape::ARuntimeLandscape() : Super()
 
 #if WITH_EDITORONLY_DATA
 	const ConstructorHelpers::FObjectFinder<UMaterial> DebugMaterialFinder(
-		TEXT("Material'/RuntimeEditableLandscape/M_DebugMaterial.M_DebugMaterial'"));
+		TEXT("Material'/RuntimeEditableLandscape/Materials/M_DebugMaterial.M_DebugMaterial'"));
 	if (ensure(DebugMaterialFinder.Succeeded()))
 	{
 		DebugMaterial = DebugMaterialFinder.Object;
@@ -56,10 +56,16 @@ void ARuntimeLandscape::HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActo
 	}
 }
 
-void ARuntimeLandscape::OnConstruction(const FTransform& Transform)
+void ARuntimeLandscape::PostLoad()
 {
-	Super::OnConstruction(Transform);
-	// BakeLandscapeLayers();
+	Super::PostLoad();
+
+	// Bake layers after editor load
+	if (ParentLandscape)
+	{
+		FTimerHandle Handle;
+		GetWorld()->GetTimerManager().SetTimer(Handle, this, &ARuntimeLandscape::BakeLandscapeLayers, 1.0f, false);
+	}
 }
 
 void ARuntimeLandscape::RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)

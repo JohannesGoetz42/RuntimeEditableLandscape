@@ -22,8 +22,9 @@ enum ESmoothingDirection : uint8
 UENUM()
 enum ELayerShape : uint8
 {
+	HS_Default UMETA(DisplayName = "Default"),
 	HS_Box UMETA(DisplayName = "Box"),
-	HS_Sphere UMETA(DisplayName = "Sphere")
+	HS_Round UMETA(DisplayName = "Round")
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
@@ -66,7 +67,7 @@ protected:
 	 */
 	TEnumAsByte<ELayerShape> Shape = ELayerShape::HS_Box;
 	UPROPERTY(EditAnywhere,
-		meta = (EditCondition = "BoundsComponent == nullptr && Shape == ELayerShape::HS_Sphere", EditConditionHides))
+		meta = (EditCondition = "BoundsComponent == nullptr && Shape == ELayerShape::HS_Round", EditConditionHides))
 	float Radius = 100.0f;
 	UPROPERTY(EditAnywhere,
 		meta = (EditCondition = "BoundsComponent == nullptr && Shape == ELayerShape::HS_Box", EditConditionHides))

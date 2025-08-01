@@ -52,7 +52,7 @@ void ALandscapeLayerActor::UpdatePreviewComponents() const
 	case ELayerShape::HS_Box:
 		BoxPreview->SetVisibility(true);
 		break;
-	case ELayerShape::HS_Sphere:
+	case ELayerShape::HS_Round:
 		SpherePreview->SetVisibility(true);
 		break;
 	default:

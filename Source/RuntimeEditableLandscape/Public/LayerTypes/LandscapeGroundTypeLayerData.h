@@ -17,8 +17,6 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeGroundTypeLayerData : public ULands
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<const ULandscapeGroundTypeData> GroundType;
-	UPROPERTY(EditAnywhere)
-	TObjectPtr<UMaterial> MaskBrushMaterial;
 
 	virtual void ApplyToLandscape(ARuntimeLandscape* Landscape, const ULandscapeLayerComponent* LandscapeLayerComponent) const override;
 };
