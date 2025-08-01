@@ -5,7 +5,7 @@
 
 #include "LandscapeLayerComponent.h"
 
-void ULandscapeHeightLayerData::Apply(URuntimeLandscapeComponent* LandscapeComponent, const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
+void ULandscapeHeightLayerData::ApplyToVertices(URuntimeLandscapeComponent* LandscapeComponent, const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
                                       float& OutHeightValue, FColor& VertexColor, float SmoothingFactor) const
 {
 	OutHeightValue = FMath::Lerp(HeightValue + LayerComponent->GetOwner()->GetActorLocation().Z, OutHeightValue,

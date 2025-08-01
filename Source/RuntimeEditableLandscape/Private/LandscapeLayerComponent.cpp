@@ -60,7 +60,7 @@ void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandsca
 	{
 		for (const ULandscapeLayerDataBase* Layer : Layers)
 		{
-			Layer->Apply(LandscapeComponent, this, VertexIndex, OutHeightValue, OutVertexColorValue, SmoothingFactor);
+			Layer->ApplyToVertices(LandscapeComponent, this, VertexIndex, OutHeightValue, OutVertexColorValue, SmoothingFactor);
 		}
 	}
 }

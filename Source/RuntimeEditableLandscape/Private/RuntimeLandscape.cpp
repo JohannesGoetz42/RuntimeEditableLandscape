@@ -9,6 +9,7 @@
 #include "RuntimeLandscapeComponent.h"
 #include "Chaos/HeightField.h"
 #include "Kismet/KismetRenderingLibrary.h"
+#include "LayerTypes/LandscapeLayerDataBase.h"
 
 ARuntimeLandscape::ARuntimeLandscape() : Super()
 {
@@ -29,6 +30,13 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 	SCOPE_CYCLE_COUNTER(STAT_AddLandscapeLayer);
 	if (ensure(LayerToAdd))
 	{
+		// apply layer effects to whole landscape
+		for (const ULandscapeLayerDataBase* Layer : LayerToAdd->GetLayerData())
+		{
+			Layer->ApplyToLandscape(this, LayerToAdd);
+		}
+
+		// apply layer effects to components
 		for (URuntimeLandscapeComponent* Component : GetComponentsInArea(LayerToAdd->GetBoundingBox()))
 		{
 			Component->AddLandscapeLayer(LayerToAdd, bForceRebuild);
@@ -48,7 +56,13 @@ void ARuntimeLandscape::HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActo
 	}
 }
 
-void ARuntimeLandscape::RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bool bForceRebuild)
+void ARuntimeLandscape::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	// BakeLandscapeLayers();
+}
+
+void ARuntimeLandscape::RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)
 {
 	for (URuntimeLandscapeComponent* LandscapeComponent : LandscapeComponents)
 	{
@@ -113,6 +127,16 @@ void ARuntimeLandscape::GetVertexCoordinatesWithinComponent(int32 VertexIndex, F
 		static_cast<float>(VertexIndex) / static_cast<float>(VertexAmountPerComponent.Y));
 }
 
+FVector ARuntimeLandscape::GetOriginLocation() const
+{
+	if (LandscapeComponents.IsEmpty() == false && LandscapeComponents[0])
+	{
+		return LandscapeComponents[0]->GetComponentLocation();
+	}
+
+	return GetActorLocation();
+}
+
 FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 {
 	const FVector2D SectionSize = LandscapeSize / ComponentAmount;
@@ -124,24 +148,35 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 		FVector2D((SectionCoordinates.X + 1) * SectionSize.X, (SectionCoordinates.Y + 1) * SectionSize.Y));
 }
 
-#if WITH_EDITORONLY_DATA
 void ARuntimeLandscape::BakeLandscapeLayers()
 {
-	for (const auto& Layer : ParentLandscape->GetTargetLayers())
+	if (ParentLandscape)
 	{
-		if (UTextureRenderTarget2D* RenderTarget = LanscapePaintLayers.FindRef(Layer.Key))
+		for (const auto& Layer : ParentLandscape->GetTargetLayers())
 		{
-			RenderTarget->SizeX = FMath::RoundToInt(PaintLayerResolution * LandscapeSize.X);
-			RenderTarget->SizeY = FMath::RoundToInt(PaintLayerResolution * LandscapeSize.Y);
-			
-			FBox2D Box2D = FBox2D();
-			Box2D.Min = FVector2D(0.0f, 0.0f);
-			Box2D.Max = LandscapeSize;
-			ParentLandscape->RenderWeightmap(GetActorTransform(), Box2D, Layer.Key, RenderTarget);
+			ULandscapeGroundTypeData** GroundTypeForLayer = GroundTypes.FindByPredicate(
+				[Layer](const ULandscapeGroundTypeData* Current)
+				{
+					return Current && Current->LandscapeLayerName == Layer.Key;
+				});
+			if (GroundTypeForLayer)
+			{
+				const ULandscapeGroundTypeData* GroundType = *GroundTypeForLayer;
+				GroundType->MaskRenderTarget->SizeX = FMath::RoundToInt(
+					GroundType->PaintLayerResolution * LandscapeSize.X);
+				GroundType->MaskRenderTarget->SizeY = FMath::RoundToInt(
+					GroundType->PaintLayerResolution * LandscapeSize.Y);
+
+				FBox2D Box2D = FBox2D();
+				Box2D.Min = FVector2D(0.0f, 0.0f);
+				Box2D.Max = LandscapeSize;
+				ParentLandscape->RenderWeightmap(GetActorTransform(), Box2D, Layer.Key, GroundType->MaskRenderTarget);
+			}
 		}
 	}
 }
 
+#if WITH_EDITORONLY_DATA
 void ARuntimeLandscape::InitializeFromLandscape()
 {
 	if (!ParentLandscape)
@@ -153,7 +188,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	{
 		LandscapeMaterial = ParentLandscape->LandscapeMaterial;
 	}
-	
+
 	HeightScale = ParentLandscape->GetActorScale().Z / FMath::Pow(2.0f, HeightValueBits);
 	ParentHeight = ParentLandscape->GetActorLocation().Z;
 
@@ -240,7 +275,16 @@ void ARuntimeLandscape::PreInitializeComponents()
 	Super::PreInitializeComponents();
 	if (IsValid(ParentLandscape))
 	{
-		ParentLandscape->Destroy();
+		if (bAffectDistanceFieldLighting)
+		{
+			ParentLandscape->SetActorEnableCollision(false);
+			ParentLandscape->bUsedForNavigation = false;
+			ParentLandscape->SetActorHiddenInGame(true);
+		}
+		else
+		{
+			ParentLandscape->Destroy();
+		}
 	}
 }
 
@@ -249,7 +293,7 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const TSet<FString> InitLandscapeProperties = TSet<FString>({
-		"ParentLandscape", "bEnableDebug", "bDrawDebugCheckerBoard", "bDrawIndexGreyscales", "DebugColor1",
+		"ParentLandscape", "bEnableDebug", "bDrawDebugCheckerBoard", "bDrawIndexGreyScales", "DebugColor1",
 		"DebugColor2", "DebugMaterial", "HoleActors", "bCastShadow", "bAffectDistanceFieldLighting"
 	});
 	if (InitLandscapeProperties.Contains(PropertyChangedEvent.MemberProperty->GetName()))

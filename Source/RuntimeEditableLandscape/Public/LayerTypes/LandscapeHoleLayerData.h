@@ -14,7 +14,7 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeHoleLayerData : public ULandscapeLa
 {
 	GENERATED_BODY()
 
-	virtual void Apply(URuntimeLandscapeComponent* LandscapeComponent, const ULandscapeLayerComponent* LayerComponent,
+	virtual void ApplyToVertices(URuntimeLandscapeComponent* LandscapeComponent, const ULandscapeLayerComponent* LayerComponent,
 	                   int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor,
 	                   float SmoothingFactor) const override;
 };

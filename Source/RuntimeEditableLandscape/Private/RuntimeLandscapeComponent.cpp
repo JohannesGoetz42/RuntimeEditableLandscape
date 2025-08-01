@@ -157,7 +157,7 @@ void URuntimeLandscapeComponent::Rebuild()
 		CleanUpOverrideMaterials();
 		SetMaterial(0, ParentLandscape->DebugMaterial);
 
-		if (ParentLandscape->bDrawDebugCheckerBoard || ParentLandscape->bDrawIndexGreyscales)
+		if (ParentLandscape->bDrawDebugCheckerBoard || ParentLandscape->bDrawIndexGreyScales)
 		{
 			const bool bIsEvenRow = SectionCoordinates.Y % 2 == 0;
 			const bool bIsEvenColumn = SectionCoordinates.X % 2 == 0;
@@ -182,7 +182,7 @@ void URuntimeLandscapeComponent::Rebuild()
 					}
 				}
 			}
-			else if (ParentLandscape->bDrawIndexGreyscales)
+			else if (ParentLandscape->bDrawIndexGreyScales)
 			{
 				const float Factor = Index / (ParentLandscape->GetComponentAmount().X * ParentLandscape->
 					GetComponentAmount().Y);

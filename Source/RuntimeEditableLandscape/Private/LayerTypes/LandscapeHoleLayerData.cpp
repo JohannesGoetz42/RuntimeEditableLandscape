@@ -5,7 +5,7 @@
 
 #include "RuntimeLandscapeComponent.h"
 
-void ULandscapeHoleLayerData::Apply(URuntimeLandscapeComponent* LandscapeComponent,
+void ULandscapeHoleLayerData::ApplyToVertices(URuntimeLandscapeComponent* LandscapeComponent,
                                     const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor,
                                     float SmoothingFactor) const
 {

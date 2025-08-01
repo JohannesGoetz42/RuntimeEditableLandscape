@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LandscapeGroundTypeData.h"
 #include "GameFramework/Actor.h"
 #include "RuntimeLandscape.generated.h"
 
@@ -41,7 +42,7 @@ public:
 	 */
 	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild = true);
 
-	void RemoveLandscapeLayer(ULandscapeLayerComponent* Layer, bool bForceRebuild = true);
+	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild = true);
 
 	/** Get the amount of vertices in a single component */
 	FORCEINLINE int32 GetTotalVertexAmountPerComponent() const
@@ -54,7 +55,6 @@ public:
 		return VertexAmountPerComponent;
 	}
 
-	/** Get the size of a single section */
 	FORCEINLINE const FVector2D& GetLandscapeSize() const { return LandscapeSize; }
 	FORCEINLINE const FVector2D& GetMeshResolution() const { return MeshResolution; }
 	FORCEINLINE const FVector2D& GetComponentAmount() const { return ComponentAmount; }
@@ -65,7 +65,7 @@ public:
 
 	/**
 	 * Get the ids for the sections contained in the specified area
-	 * Sections are numbered like this (i.e ComponentAmount = 4x4):
+	 * Sections are numbered like this (i.e. ComponentAmount = 4x4):
 	 * 0	1	2	3	4
 	 * 5	6	7	8	9
 	 * 10	11	12	13	14
@@ -86,6 +86,7 @@ public:
 	 */
 	void GetVertexCoordinatesWithinComponent(int32 VertexIndex, FIntVector2& OutCoordinateResult) const;
 
+	FVector GetOriginLocation() const;
 	FBox2D GetComponentBounds(int32 SectionIndex) const;
 
 protected:
@@ -96,6 +97,8 @@ protected:
 	uint8 bCanEverAffectNavigation : 1 = 1;
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<AInstancedFoliageActor> FoliageActor;
+	UPROPERTY(EditAnywhere)
+	TArray<ULandscapeGroundTypeData*> GroundTypes;
 	UPROPERTY()
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY()
@@ -117,11 +120,14 @@ protected:
 	UPROPERTY()
 	float QuadSideLength;
 	UPROPERTY()
-	float ParentHeight;	
+	float ParentHeight;
 
+	UFUNCTION(BlueprintCallable)
+	void BakeLandscapeLayers();
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
 
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 #if WITH_EDITORONLY_DATA
 
@@ -141,7 +147,7 @@ public:
 	bool bDrawDebugCheckerBoard;
 	UPROPERTY(EditAnywhere, Category = "Debug",
 		meta = (EditCondition="bEnableDebug && !bDrawDebugCheckerBoard", EditConditionHides))
-	bool bDrawIndexGreyscales;
+	bool bDrawIndexGreyScales;
 	UPROPERTY(EditAnywhere, Category = "Debug", meta = (EditCondition = "bEnableDebug", EditConditionHides))
 	bool bShowComponentsWithHole;
 	UPROPERTY(EditAnywhere, Category = "Debug",
@@ -152,16 +158,10 @@ public:
 	FColor DebugColor2 = FColor::Emerald;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> DebugMaterial;
-	UPROPERTY(EditAnywhere)
-	float PaintLayerResolution = 0.01f; 
-	UPROPERTY(EditAnywhere)
-	TMap<FName, UTextureRenderTarget2D*> LanscapePaintLayers;
 
 	UFUNCTION(BlueprintCallable)
-	void BakeLandscapeLayers();
-	UFUNCTION(BlueprintCallable)
 	void InitializeFromLandscape();
-	
+
 	virtual void PreInitializeComponents() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif

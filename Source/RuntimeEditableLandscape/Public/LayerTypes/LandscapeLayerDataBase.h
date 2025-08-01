@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "LandscapeLayerDataBase.generated.h"
 
+class ARuntimeLandscape;
 class URuntimeLandscapeComponent;
 /**
  * Base class for landscape layers
@@ -16,10 +17,18 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeLayerDataBase : public UDataAsset
 	GENERATED_BODY()
 
 	friend class ULandscapeLayerComponent;
-protected:	
-	virtual void Apply(URuntimeLandscapeComponent* LandscapeComponent, const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor, float SmoothingFactor) const
+	friend class ARuntimeLandscape;
+
+protected:
+	/** Override this for effects that apply their effect to the whole landscape */
+	virtual void ApplyToLandscape(ARuntimeLandscape* Landscape, const ULandscapeLayerComponent* LandscapeLayerComponent) const
 	{
-		// this must be implemented in derived classes, otherwise the class has no use
-		checkNoEntry();
+	}
+
+	/** Override this for effects that apply their effect based on vertices */
+	virtual void ApplyToVertices(URuntimeLandscapeComponent* LandscapeComponent,
+	                             const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
+	                             float& OutHeightValue, FColor& OutVertexColor, float SmoothingFactor) const
+	{
 	}
 };
