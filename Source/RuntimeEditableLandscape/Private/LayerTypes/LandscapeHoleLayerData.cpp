@@ -9,7 +9,7 @@ void ULandscapeHoleLayerData::ApplyToVertices(URuntimeLandscapeComponent* Landsc
                                     const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor,
                                     float SmoothingFactor) const
 {
-	if (SmoothingFactor == 0.0f)
+	if (SmoothingFactor < SmoothingValueThreshold)
 	{
 		LandscapeComponent->SetHoleFlagForVertex(VertexIndex, true);
 	}

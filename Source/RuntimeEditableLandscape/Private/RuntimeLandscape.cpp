@@ -272,7 +272,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	// add remembered layers
 	for (TObjectPtr<const ULandscapeLayerComponent> Layer : LandscapeLayers)
 	{
-		AddLandscapeLayer(Layer, false);
+		AddLandscapeLayer(Layer, true);
 	}
 }
 

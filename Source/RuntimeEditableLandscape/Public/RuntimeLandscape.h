@@ -107,6 +107,8 @@ protected:
 	TArray<ULandscapeGroundTypeData*> GroundTypes;
 	UPROPERTY(EditAnywhere)
 	TMap<TEnumAsByte<ELayerShape>, UMaterialInterface*> GroundTypeBrushes;
+	UPROPERTY(EditAnywhere)
+	bool bBakeLayersOnBeginPlay = true;
 	UPROPERTY()
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY()
@@ -136,6 +138,16 @@ protected:
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
 
 	virtual void PostLoad() override;
+
+	virtual void BeginPlay() override
+	{
+		if (bBakeLayersOnBeginPlay)
+		{
+			BakeLandscapeLayers();
+		}
+
+		Super::BeginPlay();
+	}
 #if WITH_EDITORONLY_DATA
 
 public:

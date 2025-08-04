@@ -32,6 +32,8 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeLayerComponent : public UActorCompo
 {
 	GENERATED_BODY()
 
+	friend class ARuntimeLandscape;
+
 public:
 	UPROPERTY(EditAnywhere, Category = "Smoothing", meta = (ClampMin = 0.0f))
 	/** Whether smoothing is applied inwards or outwards*/
@@ -111,6 +113,12 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void DestroyComponent(bool bPromoteChildren = false) override;
 
+	virtual void OnRegister() override
+	{
+		Super::OnRegister();		
+		UpdateShape();
+	}
+	
 #if WITH_EDITORONLY_DATA
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
