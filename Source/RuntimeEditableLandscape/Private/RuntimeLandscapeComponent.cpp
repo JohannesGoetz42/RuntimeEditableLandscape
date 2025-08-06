@@ -3,7 +3,6 @@
 
 #include "RuntimeLandscapeComponent.h"
 
-#include "ImageUtils.h"
 #include "KismetProceduralMeshLibrary.h"
 #include "LandscapeGrassType.h"
 #include "LandscapeLayerComponent.h"
@@ -53,11 +52,10 @@ void URuntimeLandscapeComponent::AddVertex(TArray<FVector>& OutVertices, const F
 
 void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGroundTypeData* SelectedGroundType,
                                                      const FVector& VertexRelativeLocation,
-                                                     const FVector& VertexWorldLocation, uint8 Weight)
+                                                     const FVector& VertexWorldLocation, float Weight)
 {
 	if (SelectedGroundType->GrassType)
 	{
-		float WeightRatio = Weight / UINT8_MAX;
 		for (const FGrassVariety& Variety : SelectedGroundType->GrassType->GrassVarieties)
 		{
 			UHierarchicalInstancedStaticMeshComponent** Mesh = GrassMeshes.FindByPredicate(
@@ -82,7 +80,7 @@ void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGroundTypeD
 			}
 
 			int32 RemainingInstanceCount = FMath::RoundToInt32(
-				ParentLandscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * WeightRatio);
+				ParentLandscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * Weight);
 			// int32 RemainingInstanceCount = 1;
 			while (RemainingInstanceCount > 0)
 			{
@@ -107,28 +105,21 @@ void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGroundTypeD
 void URuntimeLandscapeComponent::SetGroundTypeForVertex(const FVector& VertexLocation, int32 X, int32 Y)
 {
 	const ULandscapeGroundTypeData* SelectedGroundType = nullptr;
-	uint8 HighestWeight = 0;
+	float HighestWeight = 0;
 	const FVector VertexWorldLocation = GetComponentLocation() + VertexLocation;
 
-	int32 TEST = 0;
-	int32 TESTCURRENT = 0;
 	for (const auto& LayerWeightData : ParentLandscape->GetGroundTypeLayerWeightsAtVertexCoordinates(Index, X, Y))
 	{
 		if (LayerWeightData.Value >= HighestWeight && LayerWeightData.Value > 0.2f)
 		{
 			HighestWeight = LayerWeightData.Value;
 			SelectedGroundType = LayerWeightData.Key;
-			TEST = TESTCURRENT;
 		}
-
-		++TESTCURRENT;
 	}
 
 	if (SelectedGroundType)
 	{
-		const FColor TESTCOLOR = TEST == 0 ? FColor::Red : TEST == 1 ? FColor::Green : FColor::Blue;
-		DrawDebugSphere(GetWorld(), VertexWorldLocation, 50.0f, 4, TESTCOLOR, false, 30.0f);
-		// UpdateGrassAtVertex(SelectedGroundType, VertexLocation, VertexWorldLocation, HighestWeight);
+		UpdateGrassAtVertex(SelectedGroundType, VertexLocation, VertexWorldLocation, HighestWeight);
 	}
 }
 

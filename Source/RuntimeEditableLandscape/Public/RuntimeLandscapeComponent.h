@@ -69,8 +69,7 @@ protected:
 	void AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation, int32 X, int32 Y);
 
 	void UpdateGrassAtVertex(const ULandscapeGroundTypeData* SelectedGroundType, const FVector& VertexRelativeLocation,
-	                         const FVector&
-	                         VertexWorldLocation, uint8 Weight);
+	                         const FVector& VertexWorldLocation, float Weight);
 	void SetGroundTypeForVertex(const FVector& VertexLocation, int32 X, int32 Y);
 	void Rebuild();
 	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
@@ -79,7 +78,7 @@ protected:
 
 private:
 	bool bIsStale;
-	
+
 	/**
 	 * Does the actual rebuild after the lock.
 	 * Should not be called. Call Rebuild() instead
