@@ -82,6 +82,8 @@ struct FRuntimeLandscapeGroundTypeLayerSet
 
 		return FLinearColor::Black;
 	}
+
+	int32 GetPixelIndexForCoordinates(FIntVector2 VertexCoords) const;
 };
 
 UCLASS(Blueprintable, BlueprintType)
@@ -113,6 +115,7 @@ public:
 	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd);
 
 	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer);
+	TMap<const ULandscapeGroundTypeData*, float> GetGroundTypeLayerWeightsAtVertexCoordinates(int32 SectionIndex, int32 X, int32 Y) const;
 
 	/** Get the amount of vertices in a single component */
 	FORCEINLINE int32 GetTotalVertexAmountPerComponent() const
@@ -174,6 +177,15 @@ public:
 	 * @param OutCoordinateResult	The coordinate result
 	 */
 	void GetVertexCoordinatesWithinComponent(int32 VertexIndex, FIntVector2& OutCoordinateResult) const;
+	/**
+	 * Get the coordinates of the specified section vertex on the whole landscape
+	 * @param SectionIndex				The id of the section
+	 * @param SectionVertexX				The vertex X coordinate within the section
+	 * @param SectionVertexY				The vertex Y coordinate within the section
+	 * @param OutCoordinateResult	The coordinate result
+	 */
+	void GetVertexCoordinatesWithinLandscape(int32 SectionIndex, int32 SectionVertexX, int32 SectionVertexY,
+	                                         FIntVector2& OutCoordinateResult) const;
 
 	FVector GetOriginLocation() const;
 	FBox2D GetComponentBounds(int32 SectionIndex) const;

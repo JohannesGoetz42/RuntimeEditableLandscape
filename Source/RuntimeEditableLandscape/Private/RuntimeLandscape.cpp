@@ -27,6 +27,13 @@ TArray<FName> FRuntimeLandscapeGroundTypeLayerSet::GetLayerNames() const
 	return Result;
 }
 
+int32 FRuntimeLandscapeGroundTypeLayerSet::GetPixelIndexForCoordinates(FIntVector2 VertexCoords) const
+{
+	int32 Result = VertexCoords.X;
+	Result += VertexCoords.Y * VertexWeightRenderTarget->SizeX;
+	return Result;
+}
+
 ARuntimeLandscape::ARuntimeLandscape() : Super()
 {
 	RootComponent = CreateDefaultSubobject<USceneComponent>("Root component");
@@ -101,8 +108,6 @@ void ARuntimeLandscape::BeginPlay()
 	{
 		BakeLandscapeLayers();
 	}
-
-	Super::BeginPlay();
 }
 
 void ARuntimeLandscape::RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer)
@@ -111,6 +116,51 @@ void ARuntimeLandscape::RemoveLandscapeLayer(const ULandscapeLayerComponent* Lay
 	{
 		LandscapeComponent->RemoveLandscapeLayer(Layer);
 	}
+}
+
+TMap<const ULandscapeGroundTypeData*, float> ARuntimeLandscape::GetGroundTypeLayerWeightsAtVertexCoordinates(
+	int32 SectionIndex, int32 X, int32 Y) const
+{
+	FIntVector2 VertexCoordinates;
+	GetVertexCoordinatesWithinLandscape(SectionIndex, X, Y, VertexCoordinates);
+
+	TMap<const ULandscapeGroundTypeData*, float> Result;
+
+	for (const FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
+	{
+		int32 PixelIndex = LayerSet.GetPixelIndexForCoordinates(VertexCoordinates);
+		if (ensure(LayerSet.VertexLayerWeights.IsValidIndex(PixelIndex)))
+		{
+			const FColor& ColorAtPixel = LayerSet.VertexLayerWeights[PixelIndex];
+			int32 LayerIndex = 0;
+			for (const ULandscapeGroundTypeData* Layer : LayerSet.GroundTypes)
+			{
+				uint8 Value = 0;
+				switch (LayerIndex)
+				{
+				case 0:
+					Value = ColorAtPixel.R;
+					break;
+				case 1:
+					Value = ColorAtPixel.G;
+					break;
+				case 2:
+					Value = ColorAtPixel.B;
+					break;
+				case 3:
+					Value = ColorAtPixel.A;
+					break;
+				default:
+					checkNoEntry();
+				}
+				float LayerWeight = Value / 255.0f;
+				Result.Add(Layer, LayerWeight);
+				++LayerIndex;
+			}
+		}
+	}
+
+	return Result;
 }
 
 TArray<URuntimeLandscapeComponent*> ARuntimeLandscape::GetComponentsInArea(const FBox2D& Area) const
@@ -170,6 +220,17 @@ void ARuntimeLandscape::GetVertexCoordinatesWithinComponent(int32 VertexIndex, F
 		static_cast<float>(VertexIndex) / static_cast<float>(VertexAmountPerComponent.Y));
 }
 
+void ARuntimeLandscape::GetVertexCoordinatesWithinLandscape(int32 SectionIndex, int32 SectionVertexX,
+                                                            int32 SectionVertexY,
+                                                            FIntVector2& OutCoordinateResult) const
+{
+	FIntVector2 SectionCoordinates;
+	GetComponentCoordinates(SectionIndex, SectionCoordinates);
+
+	OutCoordinateResult.X = ComponentResolution.X * SectionCoordinates.X + SectionVertexX;
+	OutCoordinateResult.Y = ComponentResolution.Y * SectionCoordinates.Y + SectionVertexY;
+}
+
 FVector ARuntimeLandscape::GetOriginLocation() const
 {
 	if (LandscapeComponents.IsEmpty() == false && LandscapeComponents[0])
@@ -193,13 +254,9 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 
 void ARuntimeLandscape::BakeLandscapeLayers()
 {
-	// map layer names to color channels
-
 	if (ParentLandscape)
 	{
 		FBox2D Box2D = FBox2D();
-		Box2D.Min = FVector2D(0.0f, 0.0f);
-		Box2D.Max = LandscapeSize;
 
 		for (FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
 		{
@@ -212,8 +269,8 @@ void ARuntimeLandscape::BakeLandscapeLayers()
 			}
 			if (LayerSet.VertexWeightRenderTarget)
 			{
-				LayerSet.VertexWeightRenderTarget->SizeX = MeshResolution.X;
-				LayerSet.VertexWeightRenderTarget->SizeY = MeshResolution.Y;
+				LayerSet.VertexWeightRenderTarget->SizeX = MeshResolution.X + 1;
+				LayerSet.VertexWeightRenderTarget->SizeY = MeshResolution.Y + 1;
 				ParentLandscape->RenderWeightmaps(GetActorTransform(), Box2D, LayerNames,
 				                                  LayerSet.VertexWeightRenderTarget);
 

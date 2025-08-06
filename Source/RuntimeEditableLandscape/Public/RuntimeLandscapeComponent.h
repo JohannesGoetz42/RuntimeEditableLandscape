@@ -66,12 +66,12 @@ protected:
 	UPROPERTY()
 	TArray<UHierarchicalInstancedStaticMeshComponent*> GrassMeshes;
 
-	void AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation)
-	{
-		OutVertices.Add(VertexLocation);
-	}
-	bool bIsStale;
+	void AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation, int32 X, int32 Y);
 
+	void UpdateGrassAtVertex(const ULandscapeGroundTypeData* SelectedGroundType, const FVector& VertexRelativeLocation,
+	                         const FVector&
+	                         VertexWorldLocation, uint8 Weight);
+	void SetGroundTypeForVertex(const FVector& VertexLocation, int32 X, int32 Y);
 	void Rebuild();
 	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
 	void UpdateNavigation();

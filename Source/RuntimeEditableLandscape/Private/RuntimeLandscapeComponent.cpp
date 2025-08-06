@@ -10,7 +10,6 @@
 #include "NavigationSystem.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscape.h"
-#include "Kismet/KismetRenderingLibrary.h"
 #include "LayerTypes/LandscapeHoleLayerData.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
 #include "Runtime/Foliage/Public/InstancedFoliageActor.h"
@@ -43,6 +42,94 @@ FVector2D URuntimeLandscapeComponent::GetRelativeVertexLocation(int32 VertexInde
 	ParentLandscape->GetVertexCoordinatesWithinComponent(VertexIndex, Coordinates);
 	return FVector2D(Coordinates.X * ParentLandscape->GetQuadSideLength(),
 	                 Coordinates.Y * ParentLandscape->GetQuadSideLength());
+}
+
+void URuntimeLandscapeComponent::AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation, int32 X,
+                                           int32 Y)
+{
+	OutVertices.Add(VertexLocation);
+	SetGroundTypeForVertex(VertexLocation, X, Y);
+}
+
+void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGroundTypeData* SelectedGroundType,
+                                                     const FVector& VertexRelativeLocation,
+                                                     const FVector& VertexWorldLocation, uint8 Weight)
+{
+	if (SelectedGroundType->GrassType)
+	{
+		float WeightRatio = Weight / UINT8_MAX;
+		for (const FGrassVariety& Variety : SelectedGroundType->GrassType->GrassVarieties)
+		{
+			UHierarchicalInstancedStaticMeshComponent** Mesh = GrassMeshes.FindByPredicate(
+				[Variety](const UHierarchicalInstancedStaticMeshComponent* Current)
+				{
+					return Current->GetStaticMesh() == Variety.GrassMesh;
+				});
+
+			UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh;
+			if (Mesh)
+			{
+				InstancedStaticMesh = *Mesh;
+			}
+			else
+			{
+				InstancedStaticMesh = NewObject<UHierarchicalInstancedStaticMeshComponent>(GetOwner());
+				InstancedStaticMesh->SetStaticMesh(Variety.GrassMesh);
+				InstancedStaticMesh->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetIncludingScale);
+				InstancedStaticMesh->RegisterComponent();
+				InstancedStaticMesh->SetCullDistances(Variety.GetStartCullDistance(), Variety.GetEndCullDistance());
+				GrassMeshes.Add(InstancedStaticMesh);
+			}
+
+			int32 RemainingInstanceCount = FMath::RoundToInt32(
+				ParentLandscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * WeightRatio);
+			// int32 RemainingInstanceCount = 1;
+			while (RemainingInstanceCount > 0)
+			{
+				float PosX = FMath::RandRange(-0.5f, 0.5f);
+				float PosY = FMath::RandRange(-0.5f, 0.5f);
+
+				float SideLength = ParentLandscape->GetQuadSideLength();
+				FVector GrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
+
+				// TODO: Random rotation
+				float RandomRotation = 0.0f;
+				// float RandomRotation = FMath::RandRange(-180.0f, 180.0f);
+				FTransform InstanceTransform = FTransform(FRotator(0.0f, 0.0f, RandomRotation), GrassLocation);
+				InstancedStaticMesh->AddInstance(InstanceTransform);
+
+				--RemainingInstanceCount;
+			}
+		}
+	}
+}
+
+void URuntimeLandscapeComponent::SetGroundTypeForVertex(const FVector& VertexLocation, int32 X, int32 Y)
+{
+	const ULandscapeGroundTypeData* SelectedGroundType = nullptr;
+	uint8 HighestWeight = 0;
+	const FVector VertexWorldLocation = GetComponentLocation() + VertexLocation;
+
+	int32 TEST = 0;
+	int32 TESTCURRENT = 0;
+	for (const auto& LayerWeightData : ParentLandscape->GetGroundTypeLayerWeightsAtVertexCoordinates(Index, X, Y))
+	{
+		if (LayerWeightData.Value >= HighestWeight && LayerWeightData.Value > 0.2f)
+		{
+			HighestWeight = LayerWeightData.Value;
+			SelectedGroundType = LayerWeightData.Key;
+			TEST = TESTCURRENT;
+		}
+
+		++TESTCURRENT;
+	}
+
+	if (SelectedGroundType)
+	{
+		const FColor TESTCOLOR = TEST == 0 ? FColor::Red : TEST == 1 ? FColor::Green : FColor::Blue;
+		DrawDebugSphere(GetWorld(), VertexWorldLocation, 50.0f, 4, TESTCOLOR, false, 30.0f);
+		// UpdateGrassAtVertex(SelectedGroundType, VertexLocation, VertexWorldLocation, HighestWeight);
+	}
 }
 
 void URuntimeLandscapeComponent::Rebuild()
@@ -115,7 +202,7 @@ void URuntimeLandscapeComponent::ExecuteRebuild()
 	{
 		const float Y1 = Y + 1;
 		AddVertex(Vertices, FVector(0, Y1 * VertexDistance,
-		                            HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
+		                            HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()), 0, Y);
 
 		FVector2D UV0 = FVector2D(0, Y1 * UVIncrement);
 		UV0Coords.Add(UV0);
@@ -127,7 +214,7 @@ void URuntimeLandscapeComponent::ExecuteRebuild()
 		{
 			FVector VertexLocation = FVector((X + 1) * VertexDistance, Y1 * VertexDistance,
 			                                 HeightValues[VertexIndex] - ParentLandscape->GetParentHeight());
-			AddVertex(Vertices, VertexLocation);
+			AddVertex(Vertices, VertexLocation, X, Y);
 
 			UV0 = FVector2D((X + 1) * UVIncrement, Y1 * UVIncrement);
 			UV0Coords.Add(UV0);
