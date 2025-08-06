@@ -49,6 +49,7 @@ public:
 	}
 
 	FVector2D GetRelativeVertexLocation(int32 VertexIndex) const;
+	virtual void DestroyComponent(bool bPromoteChildren = false) override;
 
 protected:
 	UPROPERTY()
@@ -68,9 +69,9 @@ protected:
 
 	void AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation, int32 X, int32 Y);
 
-	void UpdateGrassAtVertex(const ULandscapeGroundTypeData* SelectedGroundType, const FVector& VertexRelativeLocation,
-	                         const FVector& VertexWorldLocation, float Weight);
-	void SetGroundTypeForVertex(const FVector& VertexLocation, int32 X, int32 Y);
+	void UpdateGrassAtVertex(const ULandscapeGrassType* SelectedGrass, const FVector& VertexRelativeLocation,
+	                         float Weight);
+	void SetGrassForVertex(const FVector& VertexLocation, int32 X, int32 Y);
 	void Rebuild();
 	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
 	void UpdateNavigation();

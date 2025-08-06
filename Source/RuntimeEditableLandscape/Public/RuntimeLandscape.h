@@ -86,6 +86,21 @@ struct FRuntimeLandscapeGroundTypeLayerSet
 	int32 GetPixelIndexForCoordinates(FIntVector2 VertexCoords) const;
 };
 
+USTRUCT(Blueprintable)
+struct FHeightBasedLandscapeData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	/** The min height in world coordinates */
+	float MinHeight = FLT_MIN;
+	/** The max height in world coordinates */
+	UPROPERTY(EditAnywhere)
+	float MaxHeight = FLT_MAX;
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<ULandscapeGrassType> Grass;
+};
+
 UCLASS(Blueprintable, BlueprintType)
 class RUNTIMEEDITABLELANDSCAPE_API ARuntimeLandscape : public AActor
 {
@@ -115,7 +130,8 @@ public:
 	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd);
 
 	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer);
-	TMap<const ULandscapeGroundTypeData*, float> GetGroundTypeLayerWeightsAtVertexCoordinates(int32 SectionIndex, int32 X, int32 Y) const;
+	TMap<const ULandscapeGroundTypeData*, float> GetGroundTypeLayerWeightsAtVertexCoordinates(
+		int32 SectionIndex, int32 X, int32 Y) const;
 
 	/** Get the amount of vertices in a single component */
 	FORCEINLINE int32 GetTotalVertexAmountPerComponent() const
@@ -135,6 +151,7 @@ public:
 	FORCEINLINE float GetQuadSideLength() const { return QuadSideLength; }
 	FORCEINLINE float GetParentHeight() const { return ParentHeight; }
 	FORCEINLINE float GetAreaPerSquare() const { return AreaPerSquare; }
+	FORCEINLINE TArray<FHeightBasedLandscapeData> GetHeightBasedData() const { return HeightBasedData; }
 	FORCEINLINE const AInstancedFoliageActor* GetFoliageActor() const { return FoliageActor; }
 	FORCEINLINE const TMap<TEnumAsByte<ELayerShape>, FGroundTypeBrushData>& GetGroundTypeBrushes() const
 	{
@@ -198,6 +215,8 @@ protected:
 	uint8 bCanEverAffectNavigation : 1 = 1;
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<AInstancedFoliageActor> FoliageActor;
+	UPROPERTY(EditAnywhere)
+	TArray<FHeightBasedLandscapeData> HeightBasedData;
 	UPROPERTY(EditAnywhere)
 	/**
 	* RenderTargets for the ground layers.

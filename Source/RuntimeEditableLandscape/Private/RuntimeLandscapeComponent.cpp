@@ -47,79 +47,91 @@ void URuntimeLandscapeComponent::AddVertex(TArray<FVector>& OutVertices, const F
                                            int32 Y)
 {
 	OutVertices.Add(VertexLocation);
-	SetGroundTypeForVertex(VertexLocation, X, Y);
+	SetGrassForVertex(VertexLocation, X, Y);
 }
 
-void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGroundTypeData* SelectedGroundType,
+void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGrassType* SelectedGrass,
                                                      const FVector& VertexRelativeLocation,
-                                                     const FVector& VertexWorldLocation, float Weight)
+                                                     float Weight)
 {
-	if (SelectedGroundType->GrassType)
+	for (const FGrassVariety& Variety : SelectedGrass->GrassVarieties)
 	{
-		for (const FGrassVariety& Variety : SelectedGroundType->GrassType->GrassVarieties)
+		UHierarchicalInstancedStaticMeshComponent** Mesh = GrassMeshes.FindByPredicate(
+			[Variety](const UHierarchicalInstancedStaticMeshComponent* Current)
+			{
+				return Current->GetStaticMesh() == Variety.GrassMesh;
+			});
+
+		UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh;
+		if (Mesh)
 		{
-			UHierarchicalInstancedStaticMeshComponent** Mesh = GrassMeshes.FindByPredicate(
-				[Variety](const UHierarchicalInstancedStaticMeshComponent* Current)
-				{
-					return Current->GetStaticMesh() == Variety.GrassMesh;
-				});
+			InstancedStaticMesh = *Mesh;
+		}
+		else
+		{
+			InstancedStaticMesh = NewObject<UHierarchicalInstancedStaticMeshComponent>(GetOwner());
+			InstancedStaticMesh->SetStaticMesh(Variety.GrassMesh);
+			InstancedStaticMesh->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetIncludingScale);
+			InstancedStaticMesh->RegisterComponent();
+			InstancedStaticMesh->SetCullDistances(Variety.GetStartCullDistance(), Variety.GetEndCullDistance());
+			GrassMeshes.Add(InstancedStaticMesh);
+		}
 
-			UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh;
-			if (Mesh)
-			{
-				InstancedStaticMesh = *Mesh;
-			}
-			else
-			{
-				InstancedStaticMesh = NewObject<UHierarchicalInstancedStaticMeshComponent>(GetOwner());
-				InstancedStaticMesh->SetStaticMesh(Variety.GrassMesh);
-				InstancedStaticMesh->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetIncludingScale);
-				InstancedStaticMesh->RegisterComponent();
-				InstancedStaticMesh->SetCullDistances(Variety.GetStartCullDistance(), Variety.GetEndCullDistance());
-				GrassMeshes.Add(InstancedStaticMesh);
-			}
+		int32 RemainingInstanceCount = FMath::RoundToInt32(
+			ParentLandscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * Weight);
+		// int32 RemainingInstanceCount = 1;
+		while (RemainingInstanceCount > 0)
+		{
+			float PosX = FMath::RandRange(-0.5f, 0.5f);
+			float PosY = FMath::RandRange(-0.5f, 0.5f);
 
-			int32 RemainingInstanceCount = FMath::RoundToInt32(
-				ParentLandscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * Weight);
-			// int32 RemainingInstanceCount = 1;
-			while (RemainingInstanceCount > 0)
-			{
-				float PosX = FMath::RandRange(-0.5f, 0.5f);
-				float PosY = FMath::RandRange(-0.5f, 0.5f);
+			float SideLength = ParentLandscape->GetQuadSideLength();
+			FVector GrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
 
-				float SideLength = ParentLandscape->GetQuadSideLength();
-				FVector GrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
+			// TODO: Random rotation
+			float RandomRotation = 0.0f;
+			// float RandomRotation = FMath::RandRange(-180.0f, 180.0f);
+			FTransform InstanceTransform = FTransform(FRotator(0.0f, 0.0f, RandomRotation), GrassLocation);
+			InstancedStaticMesh->AddInstance(InstanceTransform);
 
-				// TODO: Random rotation
-				float RandomRotation = 0.0f;
-				// float RandomRotation = FMath::RandRange(-180.0f, 180.0f);
-				FTransform InstanceTransform = FTransform(FRotator(0.0f, 0.0f, RandomRotation), GrassLocation);
-				InstancedStaticMesh->AddInstance(InstanceTransform);
-
-				--RemainingInstanceCount;
-			}
+			--RemainingInstanceCount;
 		}
 	}
 }
 
-void URuntimeLandscapeComponent::SetGroundTypeForVertex(const FVector& VertexLocation, int32 X, int32 Y)
+void URuntimeLandscapeComponent::SetGrassForVertex(const FVector& VertexLocation, int32 X, int32 Y)
 {
-	const ULandscapeGroundTypeData* SelectedGroundType = nullptr;
+	const ULandscapeGrassType* SelectedGrass = nullptr;
 	float HighestWeight = 0;
-	const FVector VertexWorldLocation = GetComponentLocation() + VertexLocation;
 
+	bool bIsLayerApplied = false;
 	for (const auto& LayerWeightData : ParentLandscape->GetGroundTypeLayerWeightsAtVertexCoordinates(Index, X, Y))
 	{
 		if (LayerWeightData.Value >= HighestWeight && LayerWeightData.Value > 0.2f)
 		{
 			HighestWeight = LayerWeightData.Value;
-			SelectedGroundType = LayerWeightData.Key;
+			SelectedGrass = LayerWeightData.Key->GrassType;
+			bIsLayerApplied = true;
 		}
 	}
 
-	if (SelectedGroundType)
+	// if no layer is applied, check if height based grass should be displayed
+	if (!bIsLayerApplied)
 	{
-		UpdateGrassAtVertex(SelectedGroundType, VertexLocation, VertexWorldLocation, HighestWeight);
+		const float VertexHeight = GetComponentLocation().Z + VertexLocation.Z;
+		for (const FHeightBasedLandscapeData& HeightBasedData : ParentLandscape->GetHeightBasedData())
+		{
+			if (HeightBasedData.MinHeight < VertexHeight && HeightBasedData.MaxHeight > VertexHeight)
+			{
+				SelectedGrass = HeightBasedData.Grass;
+				HighestWeight = 1.0f;
+			}
+		}
+	}
+
+	if (SelectedGrass)
+	{
+		UpdateGrassAtVertex(SelectedGrass, VertexLocation, HighestWeight);
 	}
 }
 
@@ -191,6 +203,7 @@ void URuntimeLandscapeComponent::ExecuteRebuild()
 
 	for (int32 Y = 0; Y < ComponentResolution.Y; Y++)
 	{
+		UE_LOG(RuntimeEditableLandscape, Display, TEXT("	Y: %i/%i..."), Y, static_cast<int32>(ComponentResolution.Y));
 		const float Y1 = Y + 1;
 		AddVertex(Vertices, FVector(0, Y1 * VertexDistance,
 		                            HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()), 0, Y);
@@ -357,4 +370,14 @@ void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 
 		FoliageComp->RemoveInstances(FoliageToRemove);
 	}
+}
+
+void URuntimeLandscapeComponent::DestroyComponent(bool bPromoteChildren)
+{
+	for (UHierarchicalInstancedStaticMeshComponent* GrassMesh : GrassMeshes)
+	{
+		GrassMesh->DestroyComponent();
+	}
+
+	Super::DestroyComponent(bPromoteChildren);
 }
