@@ -12,10 +12,12 @@
 void ULandscapeGroundTypeLayerData::ApplyToLandscape(ARuntimeLandscape* Landscape,
                                                      const ULandscapeLayerComponent* LandscapeLayerComponent) const
 {
-	if (ensure(GroundType && GroundType->MaskRenderTarget))
+	const FRuntimeLandscapeGroundTypeLayerSet* LayerSet = Landscape->TryGetLayerSetForGroundType(GroundType);
+	if (ensure(LayerSet))
 	{
-		UMaterialInterface* MaskBrushMaterial = Landscape->GetGroundTypeBrushes().FindRef(
+		FGroundTypeBrushData BrushData = Landscape->GetGroundTypeBrushes().FindRef(
 			LandscapeLayerComponent->GetShape());
+		UMaterialInstanceDynamic* MaskBrushMaterial = BrushData.BrushMaterialInstance;
 		if (ensure(MaskBrushMaterial))
 		{
 			const UBoxComponent* BoundingBox = LandscapeLayerComponent->GetOwner()->GetComponentByClass<
@@ -25,7 +27,7 @@ void ULandscapeGroundTypeLayerData::ApplyToLandscape(ARuntimeLandscape* Landscap
 				UCanvas* Canvas;
 				FDrawToRenderTargetContext RenderTargetContext;
 				FVector2D RenderTargetSize;
-				UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(GetWorld(), GroundType->MaskRenderTarget, Canvas,
+				UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(GetWorld(), LayerSet->LayerRenderTarget, Canvas,
 				                                                       RenderTargetSize,
 				                                                       RenderTargetContext);
 
@@ -47,6 +49,8 @@ void ULandscapeGroundTypeLayerData::ApplyToLandscape(ARuntimeLandscape* Landscap
 				const FVector2D BrushSize = FVector2D(BoxSize.X, BoxSize.Y * AspectRatio) * ScaleFactor;
 
 				const float Yaw = LayerOwner->GetActorRotation().Yaw;
+				FLinearColor ColorChannel = LayerSet->GetColorChannelForLayer(GroundType);
+				MaskBrushMaterial->SetVectorParameterValue(MATERIAL_PARAMETER_GROUND_TYPE_LAYER_COLOR, ColorChannel);
 
 				Canvas->K2_DrawMaterial(MaskBrushMaterial, ScreenPosition, BrushSize, FVector2D::Zero(),
 				                        FVector2D::UnitVector, Yaw);

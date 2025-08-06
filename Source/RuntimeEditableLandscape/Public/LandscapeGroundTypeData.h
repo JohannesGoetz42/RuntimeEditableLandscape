@@ -6,6 +6,7 @@
 
 #include "LandscapeGroundTypeData.generated.h"
 
+class ULandscapeGrassType;
 /**
  * Data asset that stores data for landscape ground types
  */
@@ -18,8 +19,5 @@ public:
 	UPROPERTY(EditAnywhere)
 	FName LandscapeLayerName;
 	UPROPERTY(EditAnywhere)
-	TObjectPtr<UTextureRenderTarget2D> MaskRenderTarget;
-	UPROPERTY(EditAnywhere)
-	/** BE CAREFUL when increasing, since this can cause huge render target resolution */
-	float PaintLayerResolution = 0.01f;
+	TObjectPtr<ULandscapeGrassType> GrassType;
 };

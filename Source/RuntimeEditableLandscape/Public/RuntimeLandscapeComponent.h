@@ -3,11 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LandscapeGroundTypeData.h"
 #include "LandscapeLayerActor.h"
 #include "ProceduralMeshComponent.h"
 #include "RuntimeLandscapeComponent.generated.h"
 
 
+class UHierarchicalInstancedStaticMeshComponent;
 class ARuntimeLandscape;
 class ULandscapeLayerComponent;
 
@@ -16,8 +18,10 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeComponent : public UProcedur
 {
 	GENERATED_BODY()
 
+	friend class ARuntimeLandscape;
+
 public:
-	void AddLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild);
+	void AddLandscapeLayer(const ULandscapeLayerComponent* Layer);
 
 	void SetHoleFlagForVertex(int32 VertexIndex, bool bValue)
 	{
@@ -31,18 +35,10 @@ public:
 		}
 	}
 
-	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)
+	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer)
 	{
 		AffectingLayers.Remove(Layer);
-
-		if (bForceRebuild)
-		{
-			Rebuild();
-		}
-		else
-		{
-			bIsStale = true;
-		}
+		Rebuild();
 	}
 
 	void Initialize(int32 ComponentIndex, const TArray<float>& HeightValues);
@@ -68,10 +64,25 @@ protected:
 	UPROPERTY()
 	int32 Index;
 	UPROPERTY()
+	TArray<UHierarchicalInstancedStaticMeshComponent*> GrassMeshes;
+
+	void AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation)
+	{
+		OutVertices.Add(VertexLocation);
+	}
 	bool bIsStale;
 
 	void Rebuild();
 	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
 	void UpdateNavigation();
 	void RemoveFoliageAffectedByLayer() const;
+
+private:
+	bool bIsStale;
+	
+	/**
+	 * Does the actual rebuild after the lock.
+	 * Should not be called. Call Rebuild() instead
+	 */
+	void ExecuteRebuild();
 };

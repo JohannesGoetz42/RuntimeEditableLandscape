@@ -7,12 +7,82 @@
 #include "GameFramework/Actor.h"
 #include "RuntimeLandscape.generated.h"
 
+class UTextureRenderTarget;
 enum ELayerShape : uint8;
 class URuntimeLandscapeComponent;
 class ULandscapeLayerComponent;
 class ALandscape;
 
 class UProceduralMeshComponent;
+
+USTRUCT(Blueprintable)
+struct FGroundTypeBrushData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UMaterialInterface> BrushMaterial;
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> BrushMaterialInstance;
+};
+
+USTRUCT(Blueprintable)
+/**
+ * Caches data for up to 4 landscape ground layers
+ */
+struct FRuntimeLandscapeGroundTypeLayerSet
+{
+	GENERATED_BODY()
+
+	FRuntimeLandscapeGroundTypeLayerSet()
+	{
+		// only allow 4 entries so they can be mapped to the RGBA channels
+		GroundTypes = {nullptr, nullptr, nullptr, nullptr};
+	}
+
+	UPROPERTY(EditAnywhere)
+	/**
+	 * Render target used as material input.
+	 * Has a higher resolution than the vertex resolution
+	 */
+	TObjectPtr<UTextureRenderTarget2D> LayerRenderTarget;
+	UPROPERTY(EditAnywhere)
+	/** Render target that has a pixel for every vertex on the landscape */
+	TObjectPtr<UTextureRenderTarget2D> VertexWeightRenderTarget;
+	UPROPERTY(EditAnywhere, meta = (EditFixedSize))
+	TArray<const ULandscapeGroundTypeData*> GroundTypes;
+	UPROPERTY()
+	/**
+	 * The weights for the layers
+	 * each layer is stored in a separate color channel 
+	 */
+	TArray<FColor> VertexLayerWeights;
+
+	TArray<FName> GetLayerNames() const;
+
+	FLinearColor GetColorChannelForLayer(const ULandscapeGroundTypeData* GroundType) const
+	{
+		int32 LayerIndex = GroundTypes.IndexOfByKey(GroundType);
+		if (ensure(LayerIndex != INDEX_NONE))
+		{
+			switch (LayerIndex)
+			{
+			case 0:
+				return FLinearColor(1, 0, 0, 0);
+			case 1:
+				return FLinearColor(0, 1, 0, 0);
+			case 2:
+				return FLinearColor(0, 0, 1, 0);
+			case 3:
+				return FLinearColor(0, 0, 0, 1);
+			default:
+				checkNoEntry();
+			}
+		}
+
+		return FLinearColor::Black;
+	}
+};
 
 UCLASS(Blueprintable, BlueprintType)
 class RUNTIMEEDITABLELANDSCAPE_API ARuntimeLandscape : public AActor
@@ -39,11 +109,10 @@ public:
 	/**
 	 * Adds a new layer to the landscape
 	 * @param LayerToAdd The added landscape layer
-	 * @param bForceRebuild Whether the landscape should be updated immediately (see UpdateStaleSections()). This allows delaying the update for performance reasons
 	 */
-	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild = true);
+	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd);
 
-	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild = true);
+	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer);
 
 	/** Get the amount of vertices in a single component */
 	FORCEINLINE int32 GetTotalVertexAmountPerComponent() const
@@ -62,12 +131,26 @@ public:
 	FORCEINLINE const FVector2D& GetComponentResolution() const { return ComponentResolution; }
 	FORCEINLINE float GetQuadSideLength() const { return QuadSideLength; }
 	FORCEINLINE float GetParentHeight() const { return ParentHeight; }
+	FORCEINLINE float GetAreaPerSquare() const { return AreaPerSquare; }
 	FORCEINLINE const AInstancedFoliageActor* GetFoliageActor() const { return FoliageActor; }
-	FORCEINLINE const TMap<TEnumAsByte<ELayerShape>, UMaterialInterface*>& GetGroundTypeBrushes() const
+	FORCEINLINE const TMap<TEnumAsByte<ELayerShape>, FGroundTypeBrushData>& GetGroundTypeBrushes() const
 	{
 		return GroundTypeBrushes;
 	}
 
+	const FRuntimeLandscapeGroundTypeLayerSet* TryGetLayerSetForGroundType(
+		const ULandscapeGroundTypeData* GroundType) const
+	{
+		for (const FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
+		{
+			if (LayerSet.GroundTypes.Contains(GroundType))
+			{
+				return &LayerSet;
+			}
+		}
+
+		return nullptr;
+	}
 
 	/**
 	 * Get the ids for the sections contained in the specified area
@@ -104,11 +187,21 @@ protected:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<AInstancedFoliageActor> FoliageActor;
 	UPROPERTY(EditAnywhere)
-	TArray<ULandscapeGroundTypeData*> GroundTypes;
+	/**
+	* RenderTargets for the ground layers.
+	* Stores each layer in a separate color channel
+	* Since there are 4 channels per target (RGBA), 4 layers can be stored per render target
+	*/
+	TArray<FRuntimeLandscapeGroundTypeLayerSet> GroundLayerSets;
 	UPROPERTY(EditAnywhere)
-	TMap<TEnumAsByte<ELayerShape>, UMaterialInterface*> GroundTypeBrushes;
+	float PaintLayerResolution = 0.01f;
+	UPROPERTY(EditAnywhere)
+	TMap<TEnumAsByte<ELayerShape>, FGroundTypeBrushData> GroundTypeBrushes;
 	UPROPERTY(EditAnywhere)
 	bool bBakeLayersOnBeginPlay = true;
+	UPROPERTY()
+	/** The area a single square occupies */
+	float AreaPerSquare;
 	UPROPERTY()
 	FVector2D LandscapeSize = FVector2D(1000, 1000);
 	UPROPERTY()
@@ -132,22 +225,17 @@ protected:
 	UPROPERTY()
 	float ParentHeight;
 
+	bool bIsRebuilding;
+
 	UFUNCTION(BlueprintCallable)
 	void BakeLandscapeLayers();
+
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
 
 	virtual void PostLoad() override;
+	virtual void BeginPlay() override;
 
-	virtual void BeginPlay() override
-	{
-		if (bBakeLayersOnBeginPlay)
-		{
-			BakeLandscapeLayers();
-		}
-
-		Super::BeginPlay();
-	}
 #if WITH_EDITORONLY_DATA
 
 public:

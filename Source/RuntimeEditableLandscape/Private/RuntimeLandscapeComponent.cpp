@@ -3,26 +3,22 @@
 
 #include "RuntimeLandscapeComponent.h"
 
+#include "ImageUtils.h"
 #include "KismetProceduralMeshLibrary.h"
+#include "LandscapeGrassType.h"
 #include "LandscapeLayerComponent.h"
 #include "NavigationSystem.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscape.h"
+#include "Kismet/KismetRenderingLibrary.h"
 #include "LayerTypes/LandscapeHoleLayerData.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
 #include "Runtime/Foliage/Public/InstancedFoliageActor.h"
 
-void URuntimeLandscapeComponent::AddLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)
+void URuntimeLandscapeComponent::AddLandscapeLayer(const ULandscapeLayerComponent* Layer)
 {
 	AffectingLayers.Add(Layer);
-	if (bForceRebuild)
-	{
-		Rebuild();
-	}
-	else
-	{
-		bIsStale = true;
-	}
+	Rebuild();
 }
 
 void URuntimeLandscapeComponent::Initialize(int32 ComponentIndex, const TArray<float>& HeightValues)
@@ -50,6 +46,20 @@ FVector2D URuntimeLandscapeComponent::GetRelativeVertexLocation(int32 VertexInde
 }
 
 void URuntimeLandscapeComponent::Rebuild()
+{
+	if (bIsStale)
+	{
+		return;
+	}
+
+	bIsStale = true;
+	GetWorld()->GetTimerManager().SetTimerForNextTick([this]
+	{
+		ExecuteRebuild();
+	});
+}
+
+void URuntimeLandscapeComponent::ExecuteRebuild()
 {
 	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Rebuilding Landscape component %s %i..."), *GetOwner()->GetName(),
 	       Index);
@@ -104,7 +114,8 @@ void URuntimeLandscapeComponent::Rebuild()
 	for (int32 Y = 0; Y < ComponentResolution.Y; Y++)
 	{
 		const float Y1 = Y + 1;
-		Vertices.Add(FVector(0, Y1 * VertexDistance, HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
+		AddVertex(Vertices, FVector(0, Y1 * VertexDistance,
+		                            HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
 
 		FVector2D UV0 = FVector2D(0, Y1 * UVIncrement);
 		UV0Coords.Add(UV0);
@@ -114,8 +125,9 @@ void URuntimeLandscapeComponent::Rebuild()
 		// generate triangle strip in X direction
 		for (int32 X = 0; X < ComponentResolution.X; X++)
 		{
-			Vertices.Add(FVector((X + 1) * VertexDistance, Y1 * VertexDistance,
-			                     HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
+			FVector VertexLocation = FVector((X + 1) * VertexDistance, Y1 * VertexDistance,
+			                                 HeightValues[VertexIndex] - ParentLandscape->GetParentHeight());
+			AddVertex(Vertices, VertexLocation);
 
 			UV0 = FVector2D((X + 1) * UVIncrement, Y1 * UVIncrement);
 			UV0Coords.Add(UV0);

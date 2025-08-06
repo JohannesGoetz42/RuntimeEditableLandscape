@@ -212,7 +212,7 @@ void ULandscapeLayerComponent::HandleBoundsChanged(USceneComponent* SceneCompone
 	UpdateShape();
 	for (ARuntimeLandscape* AffectedLandscape : AffectedLandscapes)
 	{
-		AffectedLandscape->RemoveLandscapeLayer(this, false);
+		AffectedLandscape->RemoveLandscapeLayer(this);
 		AffectedLandscape->AddLandscapeLayer(this);
 	}
 }
@@ -226,7 +226,7 @@ void ULandscapeLayerComponent::RemoveFromLandscapes()
 			for (URuntimeLandscapeComponent* LandscapeComponent : Landscape->GetComponentsInArea(
 				     GetBoundingBox()))
 			{
-				LandscapeComponent->RemoveLandscapeLayer(this, true);
+				LandscapeComponent->RemoveLandscapeLayer(this);
 			}
 		}
 	}
@@ -278,7 +278,7 @@ void ULandscapeLayerComponent::PostEditChangeProperty(FPropertyChangedEvent& Pro
 			for (URuntimeLandscapeComponent* LandscapeComponent : Landscape->GetComponentsInArea(
 				     GetBoundingBox()))
 			{
-				LandscapeComponent->AddLandscapeLayer(this, true);
+				LandscapeComponent->AddLandscapeLayer(this);
 			}
 		}
 	}

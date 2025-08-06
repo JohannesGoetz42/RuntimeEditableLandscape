@@ -6,6 +6,8 @@
 #include "LandscapeLayerDataBase.h"
 #include "LandscapeGroundTypeLayerData.generated.h"
 
+#define MATERIAL_PARAMETER_GROUND_TYPE_LAYER_COLOR FName("GroundTypeLayerColor")
+
 class ULandscapeGroundTypeData;
 /**
  * Layer data that applies a landscape paint layer

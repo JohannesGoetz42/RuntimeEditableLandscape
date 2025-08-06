@@ -3,13 +3,29 @@
 
 #include "RuntimeLandscape.h"
 
+#include "ImageUtils.h"
 #include "Landscape.h"
 #include "LandscapeLayerComponent.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
 #include "Chaos/HeightField.h"
+#include "Kismet/KismetMaterialLibrary.h"
 #include "Kismet/KismetRenderingLibrary.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
+
+TArray<FName> FRuntimeLandscapeGroundTypeLayerSet::GetLayerNames() const
+{
+	TArray<FName> Result;
+	for (const ULandscapeGroundTypeData* GroundLayer : GroundTypes)
+	{
+		if (GroundLayer)
+		{
+			Result.Add(GroundLayer->LandscapeLayerName);
+		}
+	}
+
+	return Result;
+}
 
 ARuntimeLandscape::ARuntimeLandscape() : Super()
 {
@@ -25,7 +41,7 @@ ARuntimeLandscape::ARuntimeLandscape() : Super()
 #endif
 }
 
-void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd, bool bForceRebuild)
+void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AddLandscapeLayer);
 	if (ensure(LayerToAdd))
@@ -39,7 +55,7 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 		// apply layer effects to components
 		for (URuntimeLandscapeComponent* Component : GetComponentsInArea(LayerToAdd->GetBoundingBox()))
 		{
-			Component->AddLandscapeLayer(LayerToAdd, bForceRebuild);
+			Component->AddLandscapeLayer(LayerToAdd);
 		}
 	}
 }
@@ -68,11 +84,32 @@ void ARuntimeLandscape::PostLoad()
 	}
 }
 
-void ARuntimeLandscape::RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer, bool bForceRebuild)
+void ARuntimeLandscape::BeginPlay()
+{
+	Super::BeginPlay();
+
+	UWorld* World = GetWorld();
+
+	// initialize brushes
+	for (auto& GroundTypeBrush : GroundTypeBrushes)
+	{
+		GroundTypeBrush.Value.BrushMaterialInstance = UKismetMaterialLibrary::CreateDynamicMaterialInstance(
+			World, GroundTypeBrush.Value.BrushMaterial);
+	}
+
+	if (bBakeLayersOnBeginPlay)
+	{
+		BakeLandscapeLayers();
+	}
+
+	Super::BeginPlay();
+}
+
+void ARuntimeLandscape::RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer)
 {
 	for (URuntimeLandscapeComponent* LandscapeComponent : LandscapeComponents)
 	{
-		LandscapeComponent->RemoveLandscapeLayer(Layer, bForceRebuild);
+		LandscapeComponent->RemoveLandscapeLayer(Layer);
 	}
 }
 
@@ -156,27 +193,35 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 
 void ARuntimeLandscape::BakeLandscapeLayers()
 {
+	// map layer names to color channels
+
 	if (ParentLandscape)
 	{
-		for (const auto& Layer : ParentLandscape->GetTargetLayers())
-		{
-			ULandscapeGroundTypeData** GroundTypeForLayer = GroundTypes.FindByPredicate(
-				[Layer](const ULandscapeGroundTypeData* Current)
-				{
-					return Current && Current->LandscapeLayerName == Layer.Key;
-				});
-			if (GroundTypeForLayer)
-			{
-				const ULandscapeGroundTypeData* GroundType = *GroundTypeForLayer;
-				GroundType->MaskRenderTarget->SizeX = FMath::RoundToInt(
-					GroundType->PaintLayerResolution * LandscapeSize.X);
-				GroundType->MaskRenderTarget->SizeY = FMath::RoundToInt(
-					GroundType->PaintLayerResolution * LandscapeSize.Y);
+		FBox2D Box2D = FBox2D();
+		Box2D.Min = FVector2D(0.0f, 0.0f);
+		Box2D.Max = LandscapeSize;
 
-				FBox2D Box2D = FBox2D();
-				Box2D.Min = FVector2D(0.0f, 0.0f);
-				Box2D.Max = LandscapeSize;
-				ParentLandscape->RenderWeightmap(GetActorTransform(), Box2D, Layer.Key, GroundType->MaskRenderTarget);
+		for (FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
+		{
+			const TArray<FName>& LayerNames = LayerSet.GetLayerNames();
+			if (LayerSet.LayerRenderTarget)
+			{
+				LayerSet.LayerRenderTarget->SizeX = FMath::RoundToInt(PaintLayerResolution * LandscapeSize.X);
+				LayerSet.LayerRenderTarget->SizeY = FMath::RoundToInt(PaintLayerResolution * LandscapeSize.Y);
+				ParentLandscape->RenderWeightmaps(GetActorTransform(), Box2D, LayerNames, LayerSet.LayerRenderTarget);
+			}
+			if (LayerSet.VertexWeightRenderTarget)
+			{
+				LayerSet.VertexWeightRenderTarget->SizeX = MeshResolution.X;
+				LayerSet.VertexWeightRenderTarget->SizeY = MeshResolution.Y;
+				ParentLandscape->RenderWeightmaps(GetActorTransform(), Box2D, LayerNames,
+				                                  LayerSet.VertexWeightRenderTarget);
+
+				FImage MaskImage;
+				FImageUtils::GetRenderTargetImage(LayerSet.VertexWeightRenderTarget, MaskImage);
+
+				TArrayView64<FColor> MaskValues = MaskImage.AsBGRA8();
+				LayerSet.VertexLayerWeights = MaskValues;
 			}
 		}
 	}
@@ -208,6 +253,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	const int32 ComponentSizeQuads = ParentLandscape->ComponentSizeQuads;
 	QuadSideLength = ParentExtent.X * 2 / MeshResolution.X;
 	ComponentSize = ComponentSizeQuads * QuadSideLength;
+	AreaPerSquare = FMath::Square(QuadSideLength);
 	ComponentAmount = FVector2D(MeshResolution.X / ComponentSizeQuads, MeshResolution.Y / ComponentSizeQuads);
 	ComponentResolution = MeshResolution / ComponentAmount;
 
@@ -272,7 +318,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	// add remembered layers
 	for (TObjectPtr<const ULandscapeLayerComponent> Layer : LandscapeLayers)
 	{
-		AddLandscapeLayer(Layer, true);
+		AddLandscapeLayer(Layer);
 	}
 }
 
@@ -333,4 +379,5 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 		}
 	}
 }
+
 #endif
