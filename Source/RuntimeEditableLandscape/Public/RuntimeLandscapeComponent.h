@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LandscapeGrassType.h"
 #include "LandscapeGroundTypeData.h"
 #include "LandscapeLayerActor.h"
 #include "ProceduralMeshComponent.h"
@@ -68,7 +69,11 @@ protected:
 	TArray<UHierarchicalInstancedStaticMeshComponent*> GrassMeshes;
 
 	void AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation, int32 X, int32 Y);
+	static void GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale);
 
+	UHierarchicalInstancedStaticMeshComponent* FindOrAddGrassMesh(const FGrassVariety& Variety);
+	void GetRandomGrassLocation(const FVector& VertexRelativeLocation, FVector& OutGrassLocation) const;
+	void GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation);
 	void UpdateGrassAtVertex(const ULandscapeGrassType* SelectedGrass, const FVector& VertexRelativeLocation,
 	                         float Weight);
 	void SetGrassForVertex(const FVector& VertexLocation, int32 X, int32 Y);

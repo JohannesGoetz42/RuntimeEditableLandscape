@@ -50,48 +50,93 @@ void URuntimeLandscapeComponent::AddVertex(TArray<FVector>& OutVertices, const F
 	SetGrassForVertex(VertexLocation, X, Y);
 }
 
+void URuntimeLandscapeComponent::GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale)
+{
+	switch (Variety.Scaling)
+	{
+	case EGrassScaling::Uniform:
+		OutScale = FVector(FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max));
+		break;
+	case EGrassScaling::Free:
+		OutScale.X = FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max);
+		OutScale.Y = FMath::RandRange(Variety.ScaleY.Min, Variety.ScaleY.Max);
+		OutScale.Z = FMath::RandRange(Variety.ScaleZ.Min, Variety.ScaleZ.Max);
+		break;
+	case EGrassScaling::LockXY:
+		OutScale.X = FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max);
+		OutScale.Y = OutScale.X;
+		OutScale.Z = FMath::RandRange(Variety.ScaleZ.Min, Variety.ScaleZ.Max);
+		break;
+	default:
+		ensureMsgf(false, TEXT("Scaling mode is not yet supported!"));
+		OutScale = FVector::One();
+	}
+}
+
+UHierarchicalInstancedStaticMeshComponent* URuntimeLandscapeComponent::FindOrAddGrassMesh(const FGrassVariety& Variety)
+{
+	UHierarchicalInstancedStaticMeshComponent** Mesh = GrassMeshes.FindByPredicate(
+		[Variety](const UHierarchicalInstancedStaticMeshComponent* Current)
+		{
+			return Current->GetStaticMesh() == Variety.GrassMesh;
+		});
+
+	if (Mesh)
+	{
+		return *Mesh;
+	}
+
+	UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh = NewObject<
+		UHierarchicalInstancedStaticMeshComponent>(GetOwner());
+	InstancedStaticMesh->SetStaticMesh(Variety.GrassMesh);
+	InstancedStaticMesh->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetIncludingScale);
+	InstancedStaticMesh->RegisterComponent();
+	InstancedStaticMesh->SetCullDistances(Variety.GetStartCullDistance(), Variety.GetEndCullDistance());
+	GrassMeshes.Add(InstancedStaticMesh);
+	return InstancedStaticMesh;
+}
+
+void URuntimeLandscapeComponent::GetRandomGrassLocation(const FVector& VertexRelativeLocation,
+                                                        FVector& OutGrassLocation) const
+{
+	float PosX = FMath::RandRange(-0.5f, 0.5f);
+	float PosY = FMath::RandRange(-0.5f, 0.5f);
+
+	float SideLength = ParentLandscape->GetQuadSideLength();
+	OutGrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
+}
+
+void URuntimeLandscapeComponent::GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation)
+{
+	if (Variety.RandomRotation)
+	{
+		float RandomRotation = FMath::RandRange(-180.0f, 180.0f);
+		OutRotation = FRotator(0.0f, RandomRotation, 0.0f);
+	}
+}
+
 void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGrassType* SelectedGrass,
                                                      const FVector& VertexRelativeLocation,
                                                      float Weight)
 {
 	for (const FGrassVariety& Variety : SelectedGrass->GrassVarieties)
 	{
-		UHierarchicalInstancedStaticMeshComponent** Mesh = GrassMeshes.FindByPredicate(
-			[Variety](const UHierarchicalInstancedStaticMeshComponent* Current)
-			{
-				return Current->GetStaticMesh() == Variety.GrassMesh;
-			});
-
-		UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh;
-		if (Mesh)
-		{
-			InstancedStaticMesh = *Mesh;
-		}
-		else
-		{
-			InstancedStaticMesh = NewObject<UHierarchicalInstancedStaticMeshComponent>(GetOwner());
-			InstancedStaticMesh->SetStaticMesh(Variety.GrassMesh);
-			InstancedStaticMesh->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetIncludingScale);
-			InstancedStaticMesh->RegisterComponent();
-			InstancedStaticMesh->SetCullDistances(Variety.GetStartCullDistance(), Variety.GetEndCullDistance());
-			GrassMeshes.Add(InstancedStaticMesh);
-		}
+		UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh = FindOrAddGrassMesh(Variety);
 
 		int32 RemainingInstanceCount = FMath::RoundToInt32(
 			ParentLandscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * Weight);
-		// int32 RemainingInstanceCount = 1;
 		while (RemainingInstanceCount > 0)
 		{
-			float PosX = FMath::RandRange(-0.5f, 0.5f);
-			float PosY = FMath::RandRange(-0.5f, 0.5f);
+			FVector GrassLocation;
+			GetRandomGrassLocation(VertexRelativeLocation, GrassLocation);
 
-			float SideLength = ParentLandscape->GetQuadSideLength();
-			FVector GrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
+			FRotator Rotation;
+			GetRandomGrassRotation(Variety, Rotation);
 
-			// TODO: Random rotation
-			float RandomRotation = 0.0f;
-			// float RandomRotation = FMath::RandRange(-180.0f, 180.0f);
-			FTransform InstanceTransform = FTransform(FRotator(0.0f, 0.0f, RandomRotation), GrassLocation);
+			FVector Scale;
+			GetRandomGrassScale(Variety, Scale);
+
+			FTransform InstanceTransform(Rotation, GrassLocation, Scale);
 			InstancedStaticMesh->AddInstance(InstanceTransform);
 
 			--RemainingInstanceCount;
@@ -194,7 +239,8 @@ void URuntimeLandscapeComponent::ExecuteRebuild()
 	// generate first row of points
 	for (int32 X = 0; X <= ComponentResolution.X; X++)
 	{
-		Vertices.Add(FVector(X * VertexDistance, 0, HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()));
+		AddVertex(Vertices, FVector(X * VertexDistance, 0,
+		                            HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()), X, 0);
 		const FVector2D UV0 = FVector2D(X * UVIncrement, 0);
 		UV0Coords.Add(UV0);
 		UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
