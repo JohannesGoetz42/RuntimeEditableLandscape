@@ -12,6 +12,7 @@
 #include "LayerTypes/LandscapeHoleLayerData.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
 #include "Runtime/Foliage/Public/InstancedFoliageActor.h"
+#include "Threads/GenerateVertexRowDataThread.h"
 
 void URuntimeLandscapeComponent::AddLandscapeLayer(const ULandscapeLayerComponent* Layer)
 {
@@ -19,15 +20,15 @@ void URuntimeLandscapeComponent::AddLandscapeLayer(const ULandscapeLayerComponen
 	Rebuild();
 }
 
-void URuntimeLandscapeComponent::Initialize(int32 ComponentIndex, const TArray<float>& HeightValues)
+void URuntimeLandscapeComponent::Initialize(int32 ComponentIndex, const TArray<float>& HeightValuesInitial)
 {
 	ParentLandscape = Cast<ARuntimeLandscape>(GetOwner());
 	if (ensure(ParentLandscape))
 	{
-		InitialHeightValues.SetNumUninitialized(HeightValues.Num());
-		for (int32 i = 0; i < HeightValues.Num(); i++)
+		InitialHeightValues.SetNumUninitialized(HeightValuesInitial.Num());
+		for (int32 i = 0; i < HeightValuesInitial.Num(); i++)
 		{
-			InitialHeightValues[i] = HeightValues[i] + ParentLandscape->GetParentHeight();
+			InitialHeightValues[i] = HeightValuesInitial[i] + ParentLandscape->GetParentHeight();
 		}
 
 		Index = ComponentIndex;
@@ -43,34 +44,11 @@ FVector2D URuntimeLandscapeComponent::GetRelativeVertexLocation(int32 VertexInde
 	                 Coordinates.Y * ParentLandscape->GetQuadSideLength());
 }
 
-void URuntimeLandscapeComponent::AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation, int32 X,
-                                           int32 Y)
+void URuntimeLandscapeComponent::GenerateVertexData(FLandscapeVertexData& OutVertexData, const FVector& VertexLocation,
+                                                    int32 X, int32 Y) const
 {
-	OutVertices.Add(VertexLocation);
-	SetGrassForVertex(VertexLocation, X, Y);
-}
-
-void URuntimeLandscapeComponent::GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale)
-{
-	switch (Variety.Scaling)
-	{
-	case EGrassScaling::Uniform:
-		OutScale = FVector(FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max));
-		break;
-	case EGrassScaling::Free:
-		OutScale.X = FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max);
-		OutScale.Y = FMath::RandRange(Variety.ScaleY.Min, Variety.ScaleY.Max);
-		OutScale.Z = FMath::RandRange(Variety.ScaleZ.Min, Variety.ScaleZ.Max);
-		break;
-	case EGrassScaling::LockXY:
-		OutScale.X = FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max);
-		OutScale.Y = OutScale.X;
-		OutScale.Z = FMath::RandRange(Variety.ScaleZ.Min, Variety.ScaleZ.Max);
-		break;
-	default:
-		ensureMsgf(false, TEXT("Scaling mode is not yet supported!"));
-		OutScale = FVector::One();
-	}
+	OutVertexData.Vertices.Add(VertexLocation);
+	GenerateGrassDataForVertex(OutVertexData, VertexLocation, X, Y);
 }
 
 UHierarchicalInstancedStaticMeshComponent* URuntimeLandscapeComponent::FindOrAddGrassMesh(const FGrassVariety& Variety)
@@ -92,39 +70,28 @@ UHierarchicalInstancedStaticMeshComponent* URuntimeLandscapeComponent::FindOrAdd
 	InstancedStaticMesh->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetIncludingScale);
 	InstancedStaticMesh->RegisterComponent();
 	InstancedStaticMesh->SetCullDistances(Variety.GetStartCullDistance(), Variety.GetEndCullDistance());
+	InstancedStaticMesh->SetCastShadow(Variety.bCastDynamicShadow);
+	InstancedStaticMesh->SetCastContactShadow(Variety.bCastContactShadow);
+	
 	GrassMeshes.Add(InstancedStaticMesh);
 	return InstancedStaticMesh;
 }
 
-void URuntimeLandscapeComponent::GetRandomGrassLocation(const FVector& VertexRelativeLocation,
-                                                        FVector& OutGrassLocation) const
-{
-	float PosX = FMath::RandRange(-0.5f, 0.5f);
-	float PosY = FMath::RandRange(-0.5f, 0.5f);
 
-	float SideLength = ParentLandscape->GetQuadSideLength();
-	OutGrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
-}
-
-void URuntimeLandscapeComponent::GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation)
-{
-	if (Variety.RandomRotation)
-	{
-		float RandomRotation = FMath::RandRange(-180.0f, 180.0f);
-		OutRotation = FRotator(0.0f, RandomRotation, 0.0f);
-	}
-}
-
-void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGrassType* SelectedGrass,
-                                                     const FVector& VertexRelativeLocation,
-                                                     float Weight)
+void URuntimeLandscapeComponent::GenerateGrassTransformsAtVertex(FLandscapeVertexData& OutVertexData,
+                                                                 const ULandscapeGrassType* SelectedGrass,
+                                                                 const FVector& VertexRelativeLocation,
+                                                                 float Weight) const
 {
 	for (const FGrassVariety& Variety : SelectedGrass->GrassVarieties)
 	{
-		UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh = FindOrAddGrassMesh(Variety);
+		// UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh = FindOrAddGrassMesh(Variety);
 
 		int32 RemainingInstanceCount = FMath::RoundToInt32(
 			ParentLandscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * Weight);
+		FLandscapeGrassVertexData GrassData;
+		GrassData.GrassVariety = Variety;
+
 		while (RemainingInstanceCount > 0)
 		{
 			FVector GrassLocation;
@@ -137,14 +104,17 @@ void URuntimeLandscapeComponent::UpdateGrassAtVertex(const ULandscapeGrassType* 
 			GetRandomGrassScale(Variety, Scale);
 
 			FTransform InstanceTransform(Rotation, GrassLocation, Scale);
-			InstancedStaticMesh->AddInstance(InstanceTransform);
-
+			// InstancedStaticMesh->AddInstance(InstanceTransform);
+			GrassData.InstanceTransforms.Add(InstanceTransform);
 			--RemainingInstanceCount;
 		}
+
+		OutVertexData.GrassData.Add(GrassData);
 	}
 }
 
-void URuntimeLandscapeComponent::SetGrassForVertex(const FVector& VertexLocation, int32 X, int32 Y)
+void URuntimeLandscapeComponent::GenerateGrassDataForVertex(FLandscapeVertexData& OutVertexData,
+                                                            const FVector& VertexLocation, int32 X, int32 Y) const
 {
 	const ULandscapeGrassType* SelectedGrass = nullptr;
 	float HighestWeight = 0;
@@ -176,7 +146,7 @@ void URuntimeLandscapeComponent::SetGrassForVertex(const FVector& VertexLocation
 
 	if (SelectedGrass)
 	{
-		UpdateGrassAtVertex(SelectedGrass, VertexLocation, HighestWeight);
+		GenerateGrassTransformsAtVertex(OutVertexData, SelectedGrass, VertexLocation, HighestWeight);
 	}
 }
 
@@ -213,144 +183,44 @@ void URuntimeLandscapeComponent::ExecuteRebuild()
 	ParentLandscape->GetComponentCoordinates(Index, SectionCoordinates);
 
 	const FVector2D ComponentResolution = ParentLandscape->GetComponentResolution();
-
 	const FVector2D UV1Scale = FVector2D::One() / ParentLandscape->GetComponentAmount();
 	const FVector2D UV1Offset = UV1Scale * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
+	const float VertexDistance = ParentLandscape->GetQuadSideLength();
+	const float UVIncrement = 1 / ComponentResolution.X;
 
-	TArray<FVector> Normals;
-	TArray<FVector2D> UV0Coords;
-	TArray<FVector2D> UV1Coords;
-	UV0Coords.Reserve(VertexAmount);
-	UV1Coords.Reserve(VertexAmount);
-	TArray<FProcMeshTangent> Tangents;
-	TArray<float> HeightValues = InitialHeightValues;
+	HeightValues = InitialHeightValues;
+
+	// TODO: Clean up. Do I need vertex colors?
 	TArray<FColor> VertexColors;
-
 	ApplyDataFromLayers(HeightValues, VertexColors);
 
-	TArray<FVector> Vertices;
-	Vertices.Reserve(VertexAmount);
-	TArray<int32> Triangles;
-	Triangles.Reserve(ComponentResolution.X * ComponentResolution.Y * 2);
-
-	const float VertexDistance = ParentLandscape->GetQuadSideLength();
 	int32 VertexIndex = 0;
-	const float UVIncrement = 1 / ComponentResolution.X;
 	// generate first row of points
+	FirstRowVertexData = FLandscapeVertexData();
 	for (int32 X = 0; X <= ComponentResolution.X; X++)
 	{
-		AddVertex(Vertices, FVector(X * VertexDistance, 0,
-		                            HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()), X, 0);
+		GenerateVertexData(FirstRowVertexData, FVector(X * VertexDistance, 0,
+		                                               HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()),
+		                   X, 0);
 		const FVector2D UV0 = FVector2D(X * UVIncrement, 0);
-		UV0Coords.Add(UV0);
-		UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
+		FirstRowVertexData.UV0Coords.Add(UV0);
+		FirstRowVertexData.UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
 		VertexIndex++;
 	}
 
+	// Start data generation threads
+	ActiveGenerationThreads = ComponentResolution.Y;
 	for (int32 Y = 0; Y < ComponentResolution.Y; Y++)
 	{
-		UE_LOG(RuntimeEditableLandscape, Display, TEXT("	Y: %i/%i..."), Y, static_cast<int32>(ComponentResolution.Y));
-		const float Y1 = Y + 1;
-		AddVertex(Vertices, FVector(0, Y1 * VertexDistance,
-		                            HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()), 0, Y);
-
-		FVector2D UV0 = FVector2D(0, Y1 * UVIncrement);
-		UV0Coords.Add(UV0);
-		UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
-		VertexIndex++;
-
-		// generate triangle strip in X direction
-		for (int32 X = 0; X < ComponentResolution.X; X++)
-		{
-			FVector VertexLocation = FVector((X + 1) * VertexDistance, Y1 * VertexDistance,
-			                                 HeightValues[VertexIndex] - ParentLandscape->GetParentHeight());
-			AddVertex(Vertices, VertexLocation, X, Y);
-
-			UV0 = FVector2D((X + 1) * UVIncrement, Y1 * UVIncrement);
-			UV0Coords.Add(UV0);
-			UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
-
-			VertexIndex++;
-
-			int32 T1 = Y * (ComponentResolution.X + 1) + X;
-			int32 T2 = T1 + ComponentResolution.X + 1;
-			int32 T3 = T1 + 1;
-
-			if (VerticesInHole.Contains(T1) || VerticesInHole.Contains(T2) || VerticesInHole.Contains(T3) ||
-				VerticesInHole.
-				Contains(T2 + 1))
-			{
-				continue;
-			}
-
-			// add upper-left triangle
-			Triangles.Add(T1);
-			Triangles.Add(T2);
-			Triangles.Add(T3);
-
-			// add lower-right triangle
-			Triangles.Add(T3);
-			Triangles.Add(T2);
-			Triangles.Add(T2 + 1);
-		}
+		UE_LOG(RuntimeEditableLandscape, Log, TEXT("Starting generation thread %s %i"), *GetName(), Y);
+		auto* Thread = new FGenerateVertexRowDataThread(
+			this, ComponentResolution, UV1Scale, UV1Offset, VertexDistance, UVIncrement, VertexIndex, Y);
+		VertexIndex += ComponentResolution.X + 1;
+		GenerationThreads.Add(Thread);
 	}
 
-	// if The vertex amount differs, something is wrong with the algorithm
-	check(Vertices.Num() == VertexAmount);
-	// if The triangle amount differs, something is wrong with the algorithm
-	//check(Triangles.Num() == SectionResolution.X * SectionResolution.Y * 6);
-
-#if WITH_EDITORONLY_DATA
-	if (ParentLandscape->bEnableDebug && ParentLandscape->DebugMaterial)
-	{
-		CleanUpOverrideMaterials();
-		SetMaterial(0, ParentLandscape->DebugMaterial);
-
-		if (ParentLandscape->bDrawDebugCheckerBoard || ParentLandscape->bDrawIndexGreyScales)
-		{
-			const bool bIsEvenRow = SectionCoordinates.Y % 2 == 0;
-			const bool bIsEvenColumn = SectionCoordinates.X % 2 == 0;
-			FColor SectionColor = FColor::White;
-			if (ParentLandscape->bDrawDebugCheckerBoard)
-			{
-				SectionColor = (bIsEvenColumn && bIsEvenRow) || (!bIsEvenColumn && !bIsEvenRow)
-					               ? ParentLandscape->DebugColor1
-					               : ParentLandscape->DebugColor2;
-				if (ParentLandscape->bShowComponentsWithHole)
-				{
-					for (const ULandscapeLayerComponent* Layer : AffectingLayers)
-					{
-						for (const ULandscapeLayerDataBase* LayerData : Layer->GetLayerData())
-						{
-							if (LayerData->IsA<ULandscapeHoleLayerData>())
-							{
-								SectionColor = FColor::Red;
-								break;
-							}
-						}
-					}
-				}
-			}
-			else if (ParentLandscape->bDrawIndexGreyScales)
-			{
-				const float Factor = Index / (ParentLandscape->GetComponentAmount().X * ParentLandscape->
-					GetComponentAmount().Y);
-				SectionColor = FLinearColor::LerpUsingHSV(FLinearColor::White, FLinearColor::Black, Factor).
-					ToFColor(false);
-			}
-			VertexColors.Init(SectionColor, Vertices.Num());
-		}
-	}
-#endif
-
-	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0Coords, Normals, Tangents);
-	CreateMeshSection(0, Vertices, Triangles, Normals, UV0Coords, UV1Coords, UV0Coords, UV0Coords, VertexColors,
-	                  Tangents,
-	                  ParentLandscape->bUpdateCollision);
-	RemoveFoliageAffectedByLayer();
-	UpdateNavigation();
-
-	bIsStale = false;
+	FTimerHandle _;
+	GetWorld()->GetTimerManager().SetTimer(_, this, &URuntimeLandscapeComponent::CheckThreadsFinished, 1.0f, true);
 }
 
 void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors)
@@ -416,6 +286,181 @@ void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 
 		FoliageComp->RemoveInstances(FoliageToRemove);
 	}
+}
+
+void URuntimeLandscapeComponent::GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation) const
+{
+	if (Variety.RandomRotation)
+	{
+		float RandomRotation = FMath::RandRange(-180.0f, 180.0f);
+		OutRotation = FRotator(0.0f, RandomRotation, 0.0f);
+	}
+}
+
+void URuntimeLandscapeComponent::GetRandomGrassLocation(const FVector& VertexRelativeLocation,
+                                                        FVector& OutGrassLocation) const
+{
+	float PosX = FMath::RandRange(-0.5f, 0.5f);
+	float PosY = FMath::RandRange(-0.5f, 0.5f);
+
+	float SideLength = ParentLandscape->GetQuadSideLength();
+	OutGrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
+}
+
+void URuntimeLandscapeComponent::GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const
+{
+	switch (Variety.Scaling)
+	{
+	case EGrassScaling::Uniform:
+		OutScale = FVector(FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max));
+		break;
+	case EGrassScaling::Free:
+		OutScale.X = FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max);
+		OutScale.Y = FMath::RandRange(Variety.ScaleY.Min, Variety.ScaleY.Max);
+		OutScale.Z = FMath::RandRange(Variety.ScaleZ.Min, Variety.ScaleZ.Max);
+		break;
+	case EGrassScaling::LockXY:
+		OutScale.X = FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max);
+		OutScale.Y = OutScale.X;
+		OutScale.Z = FMath::RandRange(Variety.ScaleZ.Min, Variety.ScaleZ.Max);
+		break;
+	default:
+		ensureMsgf(false, TEXT("Scaling mode is not yet supported!"));
+		OutScale = FVector::One();
+	}
+}
+
+void URuntimeLandscapeComponent::CheckThreadsFinished()
+{
+	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Remaining threads: %i"), ActiveGenerationThreads);
+	if (ActiveGenerationThreads < 1)
+	{
+		FinishRebuild();
+	}
+}
+
+void URuntimeLandscapeComponent::FinishRebuild()
+{
+	// TODO: Reuse stuff instead of recreating everything
+	// clean up old stuff
+	for (UHierarchicalInstancedStaticMeshComponent* GrassMesh : GrassMeshes)
+	{
+		if (ensure(GrassMesh))
+		{
+			GrassMesh->DestroyComponent();
+		}
+	}
+
+	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Finished all generation threads. Merging and applying data..."));
+
+	GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
+
+	const int32 VertexAmount = ParentLandscape->GetTotalVertexAmountPerComponent();
+	const FVector2D ComponentResolution = ParentLandscape->GetComponentResolution();
+
+	TArray<FVector> Vertices;
+	Vertices.Reserve(VertexAmount);
+	Vertices.Append(FirstRowVertexData.Vertices);
+
+	TArray<int32> Triangles;
+	Triangles.Append(FirstRowVertexData.Triangles);
+
+	TArray<FVector2D> UV0Coords;
+	UV0Coords.Reserve(VertexAmount);
+	UV0Coords.Append(FirstRowVertexData.UV0Coords);
+
+	TArray<FVector2D> UV1Coords;
+	UV1Coords.Reserve(VertexAmount);
+	UV1Coords.Append(FirstRowVertexData.UV1Coords);
+
+	Triangles.Reserve(ComponentResolution.X * ComponentResolution.Y * 2);
+
+	// merge results from threads
+	for (FGenerateVertexRowDataThread* Thread : GenerationThreads)
+	{
+		const FLandscapeVertexData& VertexData = Thread->GetVertexData();
+		Vertices.Append(VertexData.Vertices);
+		Triangles.Append(VertexData.Triangles);
+		Triangles.Append(VertexData.Triangles);
+
+		UV0Coords.Append(VertexData.UV0Coords);
+		UV1Coords.Append(VertexData.UV1Coords);
+
+		for (const FLandscapeGrassVertexData& GrassData : VertexData.GrassData)
+		{
+			UHierarchicalInstancedStaticMeshComponent* GrassMesh = FindOrAddGrassMesh(GrassData.GrassVariety);
+			GrassMesh->AddInstances(GrassData.InstanceTransforms, false);
+		}
+	}
+
+	GenerationThreads.Empty();
+
+	// if The vertex amount differs, something is wrong with the algorithm
+	check(Vertices.Num() == VertexAmount);
+	// if The triangle amount differs, something is wrong with the algorithm
+	//check(Triangles.Num() == SectionResolution.X * SectionResolution.Y * 6);
+
+#if WITH_EDITORONLY_DATA
+
+	FIntVector2 SectionCoordinates;
+	ParentLandscape->GetComponentCoordinates(Index, SectionCoordinates);
+
+	if (ParentLandscape->bEnableDebug && ParentLandscape->DebugMaterial)
+	{
+		CleanUpOverrideMaterials();
+		SetMaterial(0, ParentLandscape->DebugMaterial);
+
+		if (ParentLandscape->bDrawDebugCheckerBoard || ParentLandscape->bDrawIndexGreyScales)
+		{
+			const bool bIsEvenRow = SectionCoordinates.Y % 2 == 0;
+			const bool bIsEvenColumn = SectionCoordinates.X % 2 == 0;
+			FColor SectionColor = FColor::White;
+			if (ParentLandscape->bDrawDebugCheckerBoard)
+			{
+				SectionColor = (bIsEvenColumn && bIsEvenRow) || (!bIsEvenColumn && !bIsEvenRow)
+					               ? ParentLandscape->DebugColor1
+					               : ParentLandscape->DebugColor2;
+				if (ParentLandscape->bShowComponentsWithHole)
+				{
+					for (const ULandscapeLayerComponent* Layer : AffectingLayers)
+					{
+						for (const ULandscapeLayerDataBase* LayerData : Layer->GetLayerData())
+						{
+							if (LayerData->IsA<ULandscapeHoleLayerData>())
+							{
+								SectionColor = FColor::Red;
+								break;
+							}
+						}
+					}
+				}
+			}
+			else if (ParentLandscape->bDrawIndexGreyScales)
+			{
+				const float Factor = Index / (ParentLandscape->GetComponentAmount().X * ParentLandscape->
+					GetComponentAmount().Y);
+				SectionColor = FLinearColor::LerpUsingHSV(FLinearColor::White, FLinearColor::Black, Factor).
+					ToFColor(false);
+			}
+		}
+	}
+#endif
+
+	TArray<FColor> VertexColors;
+	VertexColors.Init(FColor::White, Vertices.Num());
+
+	TArray<FVector> Normals;
+	TArray<FProcMeshTangent> Tangents;
+	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0Coords, Normals, Tangents);
+
+	CreateMeshSection(0, Vertices, Triangles, Normals, UV0Coords, UV1Coords, UV0Coords, UV0Coords, VertexColors,
+	                  Tangents,
+	                  ParentLandscape->bUpdateCollision);
+
+	RemoveFoliageAffectedByLayer();
+	UpdateNavigation();
+
+	bIsStale = false;
 }
 
 void URuntimeLandscapeComponent::DestroyComponent(bool bPromoteChildren)

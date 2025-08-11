@@ -4,12 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "LandscapeGrassType.h"
-#include "LandscapeGroundTypeData.h"
 #include "LandscapeLayerActor.h"
 #include "ProceduralMeshComponent.h"
+#include "Threads/GenerateVertexRowDataThread.h"
 #include "RuntimeLandscapeComponent.generated.h"
 
 
+struct FLandscapeVertexData;
 class UHierarchicalInstancedStaticMeshComponent;
 class ARuntimeLandscape;
 class ULandscapeLayerComponent;
@@ -20,6 +21,7 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeComponent : public UProcedur
 	GENERATED_BODY()
 
 	friend class ARuntimeLandscape;
+	friend class FGenerateVertexRowDataThread;
 
 public:
 	void AddLandscapeLayer(const ULandscapeLayerComponent* Layer);
@@ -42,7 +44,7 @@ public:
 		Rebuild();
 	}
 
-	void Initialize(int32 ComponentIndex, const TArray<float>& HeightValues);
+	void Initialize(int32 ComponentIndex, const TArray<float>& HeightValuesInitial);
 
 	FORCEINLINE const TSet<TObjectPtr<const ULandscapeLayerComponent>>& GetAffectingLayers() const
 	{
@@ -67,20 +69,29 @@ protected:
 	int32 Index;
 	UPROPERTY()
 	TArray<UHierarchicalInstancedStaticMeshComponent*> GrassMeshes;
-
-	void AddVertex(TArray<FVector>& OutVertices, const FVector& VertexLocation, int32 X, int32 Y);
-	static void GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale);
+	// TODO: Don't store this here!
+	FLandscapeVertexData FirstRowVertexData;
+	TArray<float> HeightValues = TArray<float>();
+	TArray<FGenerateVertexRowDataThread*> GenerationThreads;
+	int32 ActiveGenerationThreads;
 
 	UHierarchicalInstancedStaticMeshComponent* FindOrAddGrassMesh(const FGrassVariety& Variety);
-	void GetRandomGrassLocation(const FVector& VertexRelativeLocation, FVector& OutGrassLocation) const;
-	void GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation);
-	void UpdateGrassAtVertex(const ULandscapeGrassType* SelectedGrass, const FVector& VertexRelativeLocation,
-	                         float Weight);
-	void SetGrassForVertex(const FVector& VertexLocation, int32 X, int32 Y);
+	void GenerateVertexData(FLandscapeVertexData& OutVertexData, const FVector& VertexLocation, int32 X, int32 Y) const;
+	void GenerateGrassTransformsAtVertex(FLandscapeVertexData& OutVertexData, const ULandscapeGrassType* SelectedGrass,
+	                                     const FVector& VertexRelativeLocation, float Weight) const;
+	void GenerateGrassDataForVertex(FLandscapeVertexData& OutVertexData, const FVector& VertexLocation, int32 X,
+	                                int32 Y) const;
 	void Rebuild();
 	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
 	void UpdateNavigation();
 	void RemoveFoliageAffectedByLayer() const;
+
+	void GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation) const;
+	void GetRandomGrassLocation(const FVector& VertexRelativeLocation, FVector& OutGrassLocation) const;
+	void GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const;
+	void CheckThreadsFinished();
+	/** Applies data to the landscape after all threads are finished */
+	void FinishRebuild();
 
 private:
 	bool bIsStale;
