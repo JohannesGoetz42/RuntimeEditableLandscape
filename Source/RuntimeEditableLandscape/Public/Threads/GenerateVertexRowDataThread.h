@@ -35,6 +35,8 @@ struct FLandscapeVertexData
 
 class FGenerateVertexRowDataThread : public FRunnable
 {
+	friend class URuntimeLandscapeComponent;
+
 public:
 	FGenerateVertexRowDataThread(URuntimeLandscapeComponent* LandscapeComponent,
 	                             const FVector2D& ComponentResolution,
@@ -56,13 +58,15 @@ private:
 	int32 YCoordinate;
 	int32 VertexIndex;
 
-	virtual uint32 Run() override
-	{
-		GenerateVertexData();
-		return 0;
-	}
+	virtual uint32 Run() override;
 
-	void GenerateVertexData();
+	void GenerateVertexData(const FVector& VertexLocation, int32 X, int32 Y);
+	void GenerateGrassDataForVertex(const FVector& VertexLocation, int32 X, int32 Y);
+	void GenerateGrassTransformsAtVertex(const ULandscapeGrassType* SelectedGrass,
+	                                     const FVector& VertexRelativeLocation, float Weight);
+	void GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation) const;
+	void GetRandomGrassLocation(const FVector& VertexRelativeLocation, FVector& OutGrassLocation) const;
+	void GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const;
 
 	FRunnableThread* Thread;
 };

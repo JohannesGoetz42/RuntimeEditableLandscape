@@ -44,13 +44,6 @@ FVector2D URuntimeLandscapeComponent::GetRelativeVertexLocation(int32 VertexInde
 	                 Coordinates.Y * ParentLandscape->GetQuadSideLength());
 }
 
-void URuntimeLandscapeComponent::GenerateVertexData(FLandscapeVertexData& OutVertexData, const FVector& VertexLocation,
-                                                    int32 X, int32 Y) const
-{
-	OutVertexData.Vertices.Add(VertexLocation);
-	GenerateGrassDataForVertex(OutVertexData, VertexLocation, X, Y);
-}
-
 UHierarchicalInstancedStaticMeshComponent* URuntimeLandscapeComponent::FindOrAddGrassMesh(const FGrassVariety& Variety)
 {
 	UHierarchicalInstancedStaticMeshComponent** Mesh = GrassMeshes.FindByPredicate(
@@ -72,82 +65,9 @@ UHierarchicalInstancedStaticMeshComponent* URuntimeLandscapeComponent::FindOrAdd
 	InstancedStaticMesh->SetCullDistances(Variety.GetStartCullDistance(), Variety.GetEndCullDistance());
 	InstancedStaticMesh->SetCastShadow(Variety.bCastDynamicShadow);
 	InstancedStaticMesh->SetCastContactShadow(Variety.bCastContactShadow);
-	
+
 	GrassMeshes.Add(InstancedStaticMesh);
 	return InstancedStaticMesh;
-}
-
-
-void URuntimeLandscapeComponent::GenerateGrassTransformsAtVertex(FLandscapeVertexData& OutVertexData,
-                                                                 const ULandscapeGrassType* SelectedGrass,
-                                                                 const FVector& VertexRelativeLocation,
-                                                                 float Weight) const
-{
-	for (const FGrassVariety& Variety : SelectedGrass->GrassVarieties)
-	{
-		// UHierarchicalInstancedStaticMeshComponent* InstancedStaticMesh = FindOrAddGrassMesh(Variety);
-
-		int32 RemainingInstanceCount = FMath::RoundToInt32(
-			ParentLandscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * Weight);
-		FLandscapeGrassVertexData GrassData;
-		GrassData.GrassVariety = Variety;
-
-		while (RemainingInstanceCount > 0)
-		{
-			FVector GrassLocation;
-			GetRandomGrassLocation(VertexRelativeLocation, GrassLocation);
-
-			FRotator Rotation;
-			GetRandomGrassRotation(Variety, Rotation);
-
-			FVector Scale;
-			GetRandomGrassScale(Variety, Scale);
-
-			FTransform InstanceTransform(Rotation, GrassLocation, Scale);
-			// InstancedStaticMesh->AddInstance(InstanceTransform);
-			GrassData.InstanceTransforms.Add(InstanceTransform);
-			--RemainingInstanceCount;
-		}
-
-		OutVertexData.GrassData.Add(GrassData);
-	}
-}
-
-void URuntimeLandscapeComponent::GenerateGrassDataForVertex(FLandscapeVertexData& OutVertexData,
-                                                            const FVector& VertexLocation, int32 X, int32 Y) const
-{
-	const ULandscapeGrassType* SelectedGrass = nullptr;
-	float HighestWeight = 0;
-
-	bool bIsLayerApplied = false;
-	for (const auto& LayerWeightData : ParentLandscape->GetGroundTypeLayerWeightsAtVertexCoordinates(Index, X, Y))
-	{
-		if (LayerWeightData.Value >= HighestWeight && LayerWeightData.Value > 0.2f)
-		{
-			HighestWeight = LayerWeightData.Value;
-			SelectedGrass = LayerWeightData.Key->GrassType;
-			bIsLayerApplied = true;
-		}
-	}
-
-	// if no layer is applied, check if height based grass should be displayed
-	if (!bIsLayerApplied)
-	{
-		const float VertexHeight = GetComponentLocation().Z + VertexLocation.Z;
-		for (const FHeightBasedLandscapeData& HeightBasedData : ParentLandscape->GetHeightBasedData())
-		{
-			if (HeightBasedData.MinHeight < VertexHeight && HeightBasedData.MaxHeight > VertexHeight)
-			{
-				SelectedGrass = HeightBasedData.Grass;
-				HighestWeight = 1.0f;
-			}
-		}
-	}
-
-	if (SelectedGrass)
-	{
-		GenerateGrassTransformsAtVertex(OutVertexData, SelectedGrass, VertexLocation, HighestWeight);
-	}
 }
 
 void URuntimeLandscapeComponent::Rebuild()
@@ -195,22 +115,9 @@ void URuntimeLandscapeComponent::ExecuteRebuild()
 	ApplyDataFromLayers(HeightValues, VertexColors);
 
 	int32 VertexIndex = 0;
-	// generate first row of points
-	FirstRowVertexData = FLandscapeVertexData();
-	for (int32 X = 0; X <= ComponentResolution.X; X++)
-	{
-		GenerateVertexData(FirstRowVertexData, FVector(X * VertexDistance, 0,
-		                                               HeightValues[VertexIndex] - ParentLandscape->GetParentHeight()),
-		                   X, 0);
-		const FVector2D UV0 = FVector2D(X * UVIncrement, 0);
-		FirstRowVertexData.UV0Coords.Add(UV0);
-		FirstRowVertexData.UV1Coords.Add(UV0 * UV1Scale + UV1Offset);
-		VertexIndex++;
-	}
-
 	// Start data generation threads
-	ActiveGenerationThreads = ComponentResolution.Y;
-	for (int32 Y = 0; Y < ComponentResolution.Y; Y++)
+	ActiveGenerationThreads = ComponentResolution.Y + 1;
+	for (int32 Y = -1; Y < ComponentResolution.Y; Y++)
 	{
 		UE_LOG(RuntimeEditableLandscape, Log, TEXT("Starting generation thread %s %i"), *GetName(), Y);
 		auto* Thread = new FGenerateVertexRowDataThread(
@@ -220,7 +127,7 @@ void URuntimeLandscapeComponent::ExecuteRebuild()
 	}
 
 	FTimerHandle _;
-	GetWorld()->GetTimerManager().SetTimer(_, this, &URuntimeLandscapeComponent::CheckThreadsFinished, 1.0f, true);
+	GetWorld()->GetTimerManager().SetTimer(_, this, &URuntimeLandscapeComponent::CheckThreadsFinished, 0.5f, true);
 }
 
 void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors)
@@ -288,48 +195,6 @@ void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 	}
 }
 
-void URuntimeLandscapeComponent::GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation) const
-{
-	if (Variety.RandomRotation)
-	{
-		float RandomRotation = FMath::RandRange(-180.0f, 180.0f);
-		OutRotation = FRotator(0.0f, RandomRotation, 0.0f);
-	}
-}
-
-void URuntimeLandscapeComponent::GetRandomGrassLocation(const FVector& VertexRelativeLocation,
-                                                        FVector& OutGrassLocation) const
-{
-	float PosX = FMath::RandRange(-0.5f, 0.5f);
-	float PosY = FMath::RandRange(-0.5f, 0.5f);
-
-	float SideLength = ParentLandscape->GetQuadSideLength();
-	OutGrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
-}
-
-void URuntimeLandscapeComponent::GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const
-{
-	switch (Variety.Scaling)
-	{
-	case EGrassScaling::Uniform:
-		OutScale = FVector(FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max));
-		break;
-	case EGrassScaling::Free:
-		OutScale.X = FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max);
-		OutScale.Y = FMath::RandRange(Variety.ScaleY.Min, Variety.ScaleY.Max);
-		OutScale.Z = FMath::RandRange(Variety.ScaleZ.Min, Variety.ScaleZ.Max);
-		break;
-	case EGrassScaling::LockXY:
-		OutScale.X = FMath::RandRange(Variety.ScaleX.Min, Variety.ScaleX.Max);
-		OutScale.Y = OutScale.X;
-		OutScale.Z = FMath::RandRange(Variety.ScaleZ.Min, Variety.ScaleZ.Max);
-		break;
-	default:
-		ensureMsgf(false, TEXT("Scaling mode is not yet supported!"));
-		OutScale = FVector::One();
-	}
-}
-
 void URuntimeLandscapeComponent::CheckThreadsFinished()
 {
 	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Remaining threads: %i"), ActiveGenerationThreads);
@@ -350,6 +215,7 @@ void URuntimeLandscapeComponent::FinishRebuild()
 			GrassMesh->DestroyComponent();
 		}
 	}
+	GrassMeshes.Empty();
 
 	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Finished all generation threads. Merging and applying data..."));
 
@@ -359,32 +225,25 @@ void URuntimeLandscapeComponent::FinishRebuild()
 	const FVector2D ComponentResolution = ParentLandscape->GetComponentResolution();
 
 	TArray<FVector> Vertices;
+	TArray<FVector2D> UV0Coords;
+	TArray<FVector2D> UV1Coords;
+
 	Vertices.Reserve(VertexAmount);
-	Vertices.Append(FirstRowVertexData.Vertices);
+	UV0Coords.Reserve(VertexAmount);
+	UV1Coords.Reserve(VertexAmount);
 
 	TArray<int32> Triangles;
-	Triangles.Append(FirstRowVertexData.Triangles);
-
-	TArray<FVector2D> UV0Coords;
-	UV0Coords.Reserve(VertexAmount);
-	UV0Coords.Append(FirstRowVertexData.UV0Coords);
-
-	TArray<FVector2D> UV1Coords;
-	UV1Coords.Reserve(VertexAmount);
-	UV1Coords.Append(FirstRowVertexData.UV1Coords);
-
 	Triangles.Reserve(ComponentResolution.X * ComponentResolution.Y * 2);
 
 	// merge results from threads
 	for (FGenerateVertexRowDataThread* Thread : GenerationThreads)
 	{
-		const FLandscapeVertexData& VertexData = Thread->GetVertexData();
-		Vertices.Append(VertexData.Vertices);
-		Triangles.Append(VertexData.Triangles);
-		Triangles.Append(VertexData.Triangles);
+		FLandscapeVertexData& VertexData = Thread->VertexData;
+		Vertices.Append(MoveTemp(VertexData.Vertices));
+		Triangles.Append(MoveTemp(VertexData.Triangles));
 
-		UV0Coords.Append(VertexData.UV0Coords);
-		UV1Coords.Append(VertexData.UV1Coords);
+		UV0Coords.Append(MoveTemp(VertexData.UV0Coords));
+		UV1Coords.Append(MoveTemp(VertexData.UV1Coords));
 
 		for (const FLandscapeGrassVertexData& GrassData : VertexData.GrassData)
 		{
