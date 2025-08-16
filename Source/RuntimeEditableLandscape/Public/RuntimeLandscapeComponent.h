@@ -6,10 +6,10 @@
 #include "LandscapeGrassType.h"
 #include "LandscapeLayerActor.h"
 #include "ProceduralMeshComponent.h"
-#include "Threads/GenerateVertexRowDataThread.h"
 #include "RuntimeLandscapeComponent.generated.h"
 
 
+struct FRuntimeLandscapeRebuildBuffer;
 struct FLandscapeVertexData;
 class UHierarchicalInstancedStaticMeshComponent;
 class ARuntimeLandscape;
@@ -22,6 +22,7 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeComponent : public UProcedur
 
 	friend class ARuntimeLandscape;
 	friend class FGenerateVertexRowDataThread;
+	friend class URuntimeLandscapeRebuildManager;
 
 public:
 	void AddLandscapeLayer(const ULandscapeLayerComponent* Layer);
@@ -71,8 +72,6 @@ protected:
 	TArray<UHierarchicalInstancedStaticMeshComponent*> GrassMeshes;
 	
 	TArray<float> HeightValues = TArray<float>();
-	TArray<FGenerateVertexRowDataThread*> GenerationThreads;
-	int32 ActiveGenerationThreads;
 
 	UHierarchicalInstancedStaticMeshComponent* FindOrAddGrassMesh(const FGrassVariety& Variety);
 	void Rebuild();
@@ -80,16 +79,9 @@ protected:
 	void UpdateNavigation();
 	void RemoveFoliageAffectedByLayer() const;
 
-	void CheckThreadsFinished();
 	/** Applies data to the landscape after all threads are finished */
-	void FinishRebuild();
+	void FinishRebuild(const FRuntimeLandscapeRebuildBuffer& RebuildBuffer);
 
 private:
 	bool bIsStale;
-
-	/**
-	 * Does the actual rebuild after the lock.
-	 * Should not be called. Call Rebuild() instead
-	 */
-	void ExecuteRebuild();
 };

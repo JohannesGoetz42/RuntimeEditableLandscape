@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "RuntimeLandscape.generated.h"
 
+class URuntimeLandscapeRebuildManager;
 class UTextureRenderTarget;
 enum ELayerShape : uint8;
 class URuntimeLandscapeComponent;
@@ -144,6 +145,7 @@ public:
 		return VertexAmountPerComponent;
 	}
 
+	FORCEINLINE URuntimeLandscapeRebuildManager* GetRebuildManager() const { return RebuildManager; }
 	FORCEINLINE const FVector2D& GetLandscapeSize() const { return LandscapeSize; }
 	FORCEINLINE const FVector2D& GetMeshResolution() const { return MeshResolution; }
 	FORCEINLINE const FVector2D& GetComponentAmount() const { return ComponentAmount; }
@@ -208,6 +210,8 @@ public:
 	FBox2D GetComponentBounds(int32 SectionIndex) const;
 
 protected:
+	UPROPERTY()
+	TObjectPtr<URuntimeLandscapeRebuildManager> RebuildManager;
 	UPROPERTY(EditAnywhere)
 	/** The base for scaling landscape height (8 bit?) */
 	int32 HeightValueBits = 7;

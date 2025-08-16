@@ -12,6 +12,7 @@
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Kismet/KismetRenderingLibrary.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
+#include "Threads/RuntimeLandscapeRebuildManager.h"
 
 TArray<FName> FRuntimeLandscapeGroundTypeLayerSet::GetLayerNames() const
 {
@@ -37,6 +38,7 @@ int32 FRuntimeLandscapeGroundTypeLayerSet::GetPixelIndexForCoordinates(FIntVecto
 ARuntimeLandscape::ARuntimeLandscape() : Super()
 {
 	RootComponent = CreateDefaultSubobject<USceneComponent>("Root component");
+	RebuildManager = CreateDefaultSubobject<URuntimeLandscapeRebuildManager>("Rebuild manager");
 
 #if WITH_EDITORONLY_DATA
 	const ConstructorHelpers::FObjectFinder<UMaterial> DebugMaterialFinder(

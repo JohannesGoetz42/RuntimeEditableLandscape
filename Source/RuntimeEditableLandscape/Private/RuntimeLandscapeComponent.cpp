@@ -3,7 +3,6 @@
 
 #include "RuntimeLandscapeComponent.h"
 
-#include "KismetProceduralMeshLibrary.h"
 #include "LandscapeGrassType.h"
 #include "LandscapeLayerComponent.h"
 #include "NavigationSystem.h"
@@ -12,7 +11,7 @@
 #include "LayerTypes/LandscapeHoleLayerData.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
 #include "Runtime/Foliage/Public/InstancedFoliageActor.h"
-#include "Threads/GenerateVertexRowDataThread.h"
+#include "Threads/RuntimeLandscapeRebuildManager.h"
 
 void URuntimeLandscapeComponent::AddLandscapeLayer(const ULandscapeLayerComponent* Layer)
 {
@@ -78,56 +77,7 @@ void URuntimeLandscapeComponent::Rebuild()
 	}
 
 	bIsStale = true;
-	GetWorld()->GetTimerManager().SetTimerForNextTick([this]
-	{
-		ExecuteRebuild();
-	});
-}
-
-void URuntimeLandscapeComponent::ExecuteRebuild()
-{
-	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Rebuilding Landscape component %s %i..."), *GetOwner()->GetName(),
-	       Index);
-
-	const int32 VertexAmount = ParentLandscape->GetTotalVertexAmountPerComponent();
-	// ensure the section data is valid
-	if (!ensure(InitialHeightValues.Num() == VertexAmount))
-	{
-		UE_LOG(RuntimeEditableLandscape, Warning,
-		       TEXT("Component %i could not generate valid data and will not be generated!"),
-		       Index);
-		return;
-	}
-
-	FIntVector2 SectionCoordinates;
-	ParentLandscape->GetComponentCoordinates(Index, SectionCoordinates);
-
-	const FVector2D ComponentResolution = ParentLandscape->GetComponentResolution();
-	const FVector2D UV1Scale = FVector2D::One() / ParentLandscape->GetComponentAmount();
-	const FVector2D UV1Offset = UV1Scale * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
-	const float VertexDistance = ParentLandscape->GetQuadSideLength();
-	const float UVIncrement = 1 / ComponentResolution.X;
-
-	HeightValues = InitialHeightValues;
-
-	// TODO: Clean up. Do I need vertex colors?
-	TArray<FColor> VertexColors;
-	ApplyDataFromLayers(HeightValues, VertexColors);
-
-	int32 VertexIndex = 0;
-	// Start data generation threads
-	ActiveGenerationThreads = ComponentResolution.Y + 1;
-	for (int32 Y = -1; Y < ComponentResolution.Y; Y++)
-	{
-		UE_LOG(RuntimeEditableLandscape, Log, TEXT("Starting generation thread %s %i"), *GetName(), Y);
-		auto* Thread = new FGenerateVertexRowDataThread(
-			this, ComponentResolution, UV1Scale, UV1Offset, VertexDistance, UVIncrement, VertexIndex, Y);
-		VertexIndex += ComponentResolution.X + 1;
-		GenerationThreads.Add(Thread);
-	}
-
-	FTimerHandle _;
-	GetWorld()->GetTimerManager().SetTimer(_, this, &URuntimeLandscapeComponent::CheckThreadsFinished, 0.5f, true);
+	ParentLandscape->GetRebuildManager()->QueueRebuild(this);
 }
 
 void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors)
@@ -195,16 +145,7 @@ void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 	}
 }
 
-void URuntimeLandscapeComponent::CheckThreadsFinished()
-{
-	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Remaining threads: %i"), ActiveGenerationThreads);
-	if (ActiveGenerationThreads < 1)
-	{
-		FinishRebuild();
-	}
-}
-
-void URuntimeLandscapeComponent::FinishRebuild()
+void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuffer& RebuildBuffer)
 {
 	// TODO: Reuse stuff instead of recreating everything
 	// clean up old stuff
@@ -221,43 +162,16 @@ void URuntimeLandscapeComponent::FinishRebuild()
 
 	GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
 
-	const int32 VertexAmount = ParentLandscape->GetTotalVertexAmountPerComponent();
 	const FVector2D ComponentResolution = ParentLandscape->GetComponentResolution();
-
-	TArray<FVector> Vertices;
-	TArray<FVector2D> UV0Coords;
-	TArray<FVector2D> UV1Coords;
-
-	Vertices.Reserve(VertexAmount);
-	UV0Coords.Reserve(VertexAmount);
-	UV1Coords.Reserve(VertexAmount);
 
 	TArray<int32> Triangles;
 	Triangles.Reserve(ComponentResolution.X * ComponentResolution.Y * 2);
 
-	// merge results from threads
-	for (FGenerateVertexRowDataThread* Thread : GenerationThreads)
+	for (const FLandscapeGrassVertexData& GrassData : RebuildBuffer.GrassData)
 	{
-		FLandscapeVertexData& VertexData = Thread->VertexData;
-		Vertices.Append(MoveTemp(VertexData.Vertices));
-		Triangles.Append(MoveTemp(VertexData.Triangles));
-
-		UV0Coords.Append(MoveTemp(VertexData.UV0Coords));
-		UV1Coords.Append(MoveTemp(VertexData.UV1Coords));
-
-		for (const FLandscapeGrassVertexData& GrassData : VertexData.GrassData)
-		{
-			UHierarchicalInstancedStaticMeshComponent* GrassMesh = FindOrAddGrassMesh(GrassData.GrassVariety);
-			GrassMesh->AddInstances(GrassData.InstanceTransforms, false);
-		}
+		UHierarchicalInstancedStaticMeshComponent* GrassMesh = FindOrAddGrassMesh(GrassData.GrassVariety);
+		GrassMesh->AddInstances(GrassData.InstanceTransforms, false);
 	}
-
-	GenerationThreads.Empty();
-
-	// if The vertex amount differs, something is wrong with the algorithm
-	check(Vertices.Num() == VertexAmount);
-	// if The triangle amount differs, something is wrong with the algorithm
-	//check(Triangles.Num() == SectionResolution.X * SectionResolution.Y * 6);
 
 #if WITH_EDITORONLY_DATA
 
@@ -306,15 +220,11 @@ void URuntimeLandscapeComponent::FinishRebuild()
 #endif
 
 	TArray<FColor> VertexColors;
-	VertexColors.Init(FColor::White, Vertices.Num());
+	VertexColors.Init(FColor::White, RebuildBuffer.Vertices.Num());
 
-	TArray<FVector> Normals;
-	TArray<FProcMeshTangent> Tangents;
-	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UV0Coords, Normals, Tangents);
-
-	CreateMeshSection(0, Vertices, Triangles, Normals, UV0Coords, UV1Coords, UV0Coords, UV0Coords, VertexColors,
-	                  Tangents,
-	                  ParentLandscape->bUpdateCollision);
+	CreateMeshSection(0, RebuildBuffer.Vertices, Triangles, RebuildBuffer.Normals, RebuildBuffer.UV0Coords,
+	                  RebuildBuffer.UV1Coords, RebuildBuffer.UV0Coords, RebuildBuffer.UV0Coords, VertexColors,
+	                  RebuildBuffer.Tangents, ParentLandscape->bUpdateCollision);
 
 	RemoveFoliageAffectedByLayer();
 	UpdateNavigation();

@@ -14,53 +14,31 @@ class URuntimeLandscapeComponent;
 class ARuntimeLandscape;
 struct FGrassVariety;
 
-struct FLandscapeGrassVertexData
-{
-	FGrassVariety GrassVariety;
-	TArray<FTransform> InstanceTransforms;
-};
-
-struct FLandscapeVertexData
-{
-	// Vertices
-	TArray<FVector> Vertices;
-	TArray<int32> Triangles;
-	TArray<FVector> Normals;
-	TArray<FVector2D> UV0Coords;
-	TArray<FVector2D> UV1Coords;
-
-	// Additional data
-	TArray<FLandscapeGrassVertexData> GrassData;
-};
-
 class FGenerateVertexRowDataThread : public FRunnable
 {
-	friend class URuntimeLandscapeComponent;
+	friend class URuntimeLandscapeRebuildManager;
 
 public:
-	FGenerateVertexRowDataThread(URuntimeLandscapeComponent* LandscapeComponent,
-	                             const FVector2D& ComponentResolution,
-	                             const FVector2D& UV1Scale, const FVector2D& UV1Offset, float VertexDistance,
-	                             float UVIncrement, int32 VertexStartIndex, int32 YCoordinate);
-
+	FGenerateVertexRowDataThread(URuntimeLandscapeRebuildManager* RebuildManager, int32 Index);
 	virtual ~FGenerateVertexRowDataThread() override;
 
-	FORCEINLINE const FLandscapeVertexData& GetVertexData() const { return VertexData; }
-
 private:
-	FLandscapeVertexData VertexData;
-	URuntimeLandscapeComponent* LandscapeComponent;
-	FVector2D ComponentResolution;
-	FVector2D UV1Scale;
+	int32 YCoordinate = 0;
+	int32 StartIndex = 0;
 	FVector2D UV1Offset;
-	float VertexDistance;
-	float UVIncrement;
-	int32 YCoordinate;
-	int32 VertexIndex;
+
+	TObjectPtr<URuntimeLandscapeRebuildManager> RebuildManager;
+
+	void InitializeRun(int32 Y, int32 VertexStartIndex, const FVector2D& InUV1Offset)
+	{
+		YCoordinate = Y;
+		StartIndex = VertexStartIndex;
+		UV1Offset = InUV1Offset;
+
+		Run();
+	}
 
 	virtual uint32 Run() override;
-
-	void GenerateVertexData(const FVector& VertexLocation, int32 X, int32 Y);
 	void GenerateGrassDataForVertex(const FVector& VertexLocation, int32 X, int32 Y);
 	void GenerateGrassTransformsAtVertex(const ULandscapeGrassType* SelectedGrass,
 	                                     const FVector& VertexRelativeLocation, float Weight);
