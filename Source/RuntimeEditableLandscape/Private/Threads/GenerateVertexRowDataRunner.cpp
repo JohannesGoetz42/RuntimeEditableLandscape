@@ -1,30 +1,23 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Threads/GenerateVertexRowDataThread.h"
+#include "Threads/GenerateVertexRowDataRunner.h"
 
 #include "RuntimeLandscape.h"
 #include "RuntimeLandscapeComponent.h"
 #include "Threads/RuntimeLandscapeRebuildManager.h"
 
-FGenerateVertexRowDataThread::FGenerateVertexRowDataThread(URuntimeLandscapeRebuildManager* RebuildManager, int32 Index)
+FGenerateVertexRowDataRunner::FGenerateVertexRowDataRunner(URuntimeLandscapeRebuildManager* RebuildManager)
 {
-	Thread = FRunnableThread::Create(
-		this, *FString::Printf(
-			TEXT("FGenerateVertexRowDataThread %i"), Index));
-	this->RebuildManager = RebuildManager;
+	this->RebuildManager = RebuildManager; 
 }
 
-FGenerateVertexRowDataThread::~FGenerateVertexRowDataThread()
+FGenerateVertexRowDataRunner::~FGenerateVertexRowDataRunner()
 {
-	if (Thread)
-	{
-		Thread->Kill();
-		delete Thread;
-	}
+	checkNoEntry();
 }
 
-uint32 FGenerateVertexRowDataThread::Run()
+void FGenerateVertexRowDataRunner::DoThreadedWork()
 {
 	const float Y1 = YCoordinate + 1;
 	const TArray<float>& HeightValues = RebuildManager->DataBuffer.HeightValues;
@@ -35,7 +28,7 @@ uint32 FGenerateVertexRowDataThread::Run()
 	// First row of vertices is handled differently
 	if (VertexIndex == 0)
 	{
-		for (int32 X = 0; X <= DataCache.ComponentResolution.X; X++)
+		for (int32 X = 0; X <= Landscape->GetComponentResolution().X; X++)
 		{
 			const FVector Location(X * DataCache.VertexDistance, 0,
 			                       HeightValues[VertexIndex] - Landscape->GetParentHeight());
@@ -48,7 +41,7 @@ uint32 FGenerateVertexRowDataThread::Run()
 		}
 
 		RebuildManager->RunningThreadCount--;
-		return 0;
+		return;
 	}
 
 	FVector Location(0, Y1 * DataCache.VertexDistance, HeightValues[VertexIndex] - Landscape->GetParentHeight());
@@ -61,7 +54,7 @@ uint32 FGenerateVertexRowDataThread::Run()
 	VertexIndex++;
 
 	// generate triangle strip in X direction
-	for (int32 X = 0; X < DataCache.ComponentResolution.X; X++)
+	for (int32 X = 0; X < Landscape->GetComponentResolution().X; X++)
 	{
 		Location = FVector((X + 1) * DataCache.VertexDistance, Y1 * DataCache.VertexDistance,
 		                   HeightValues[VertexIndex] - Landscape->GetParentHeight());
@@ -75,8 +68,8 @@ uint32 FGenerateVertexRowDataThread::Run()
 
 		VertexIndex++;
 
-		const int32 T1 = YCoordinate * (DataCache.ComponentResolution.X + 1) + X;
-		const int32 T2 = T1 + DataCache.ComponentResolution.X + 1;
+		const int32 T1 = YCoordinate * (Landscape->GetComponentResolution().X + 1) + X;
+		const int32 T2 = T1 + Landscape->GetComponentResolution().X + 1;
 		const int32 T3 = T1 + 1;
 
 		const TSet<int32>& VerticesInHole = RebuildManager->CurrentComponent->VerticesInHole;
@@ -100,10 +93,9 @@ uint32 FGenerateVertexRowDataThread::Run()
 	}
 
 	RebuildManager->RunningThreadCount--;
-	return 0;
 }
 
-void FGenerateVertexRowDataThread::GenerateGrassDataForVertex(const FVector& VertexLocation, int32 X, int32 Y)
+void FGenerateVertexRowDataRunner::GenerateGrassDataForVertex(const FVector& VertexLocation, int32 X, int32 Y)
 {
 	const ULandscapeGrassType* SelectedGrass = nullptr;
 	float HighestWeight = 0;
@@ -141,7 +133,7 @@ void FGenerateVertexRowDataThread::GenerateGrassDataForVertex(const FVector& Ver
 	}
 }
 
-void FGenerateVertexRowDataThread::GenerateGrassTransformsAtVertex(const ULandscapeGrassType* SelectedGrass,
+void FGenerateVertexRowDataRunner::GenerateGrassTransformsAtVertex(const ULandscapeGrassType* SelectedGrass,
                                                                    const FVector& VertexRelativeLocation,
                                                                    float Weight)
 {
@@ -175,7 +167,7 @@ void FGenerateVertexRowDataThread::GenerateGrassTransformsAtVertex(const ULandsc
 	// }
 }
 
-void FGenerateVertexRowDataThread::GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation) const
+void FGenerateVertexRowDataRunner::GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation) const
 {
 	if (Variety.RandomRotation)
 	{
@@ -184,7 +176,7 @@ void FGenerateVertexRowDataThread::GetRandomGrassRotation(const FGrassVariety& V
 	}
 }
 
-void FGenerateVertexRowDataThread::GetRandomGrassLocation(const FVector& VertexRelativeLocation,
+void FGenerateVertexRowDataRunner::GetRandomGrassLocation(const FVector& VertexRelativeLocation,
                                                           FVector& OutGrassLocation) const
 {
 	float PosX = FMath::RandRange(-0.5f, 0.5f);
@@ -194,7 +186,7 @@ void FGenerateVertexRowDataThread::GetRandomGrassLocation(const FVector& VertexR
 	OutGrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
 }
 
-void FGenerateVertexRowDataThread::GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const
+void FGenerateVertexRowDataRunner::GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const
 {
 	switch (Variety.Scaling)
 	{

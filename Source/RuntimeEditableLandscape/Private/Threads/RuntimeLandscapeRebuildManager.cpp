@@ -6,10 +6,11 @@
 #include "KismetProceduralMeshLibrary.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
-#include "Threads/GenerateVertexRowDataThread.h"
+#include "Threads/GenerateVertexRowDataRunner.h"
 
 URuntimeLandscapeRebuildManager::URuntimeLandscapeRebuildManager() : Super()
 {
+	bTickInEditor = true;
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = false;
 	PrimaryComponentTick.TickInterval = 0.2f;
@@ -25,6 +26,7 @@ void URuntimeLandscapeRebuildManager::QueueRebuild(URuntimeLandscapeComponent* C
 	{
 		CurrentComponent = ComponentToRebuild;
 		StartRebuild();
+		SetComponentTickEnabled(true);
 	}
 }
 
@@ -35,13 +37,17 @@ void URuntimeLandscapeRebuildManager::InitializeGenerationCache()
 	GenerationDataCache.UVIncrement = 1 / Landscape->GetComponentResolution().X;
 }
 
-void URuntimeLandscapeRebuildManager::InitializeThreads()
+void URuntimeLandscapeRebuildManager::InitializeRunners()
 {
-	for (int32 i = 0; i <= GenerationDataCache.ComponentResolution.Y + 1; ++i)
+	for (int32 i = 0; i <= Landscape->GetComponentResolution().Y + 1; ++i)
 	{
-		auto* Thread = new FGenerateVertexRowDataThread(this, i);
+		auto* Thread = new FGenerateVertexRowDataRunner(this);
 		GenerationThreads.Add(Thread);
 	}
+
+	ThreadPool = FQueuedThreadPool::Allocate();
+	int32 NumThreadsInThreadPool = FPlatformMisc::NumberOfWorkerThreadsToSpawn();
+	verify(ThreadPool->Create(NumThreadsInThreadPool));
 }
 
 void URuntimeLandscapeRebuildManager::InitializeBuffer()
@@ -53,6 +59,7 @@ void URuntimeLandscapeRebuildManager::InitializeBuffer()
 	DataBuffer.Vertices.SetNumUninitialized(VertexAmount);
 	DataBuffer.UV0Coords.SetNumUninitialized(VertexAmount);
 	DataBuffer.UV1Coords.SetNumUninitialized(VertexAmount);
+	DataBuffer.Triangles.SetNumUninitialized(VertexAmount * 6);
 }
 
 void URuntimeLandscapeRebuildManager::StartRebuild()
@@ -79,14 +86,14 @@ void URuntimeLandscapeRebuildManager::StartRebuild()
 	CurrentComponent->ApplyDataFromLayers(DataBuffer.HeightValues, VertexColors);
 
 	int32 VertexIndex = 0;
-	// Start data generation threads
-	RunningThreadCount = GenerationDataCache.ComponentResolution.Y + 1;
+	// Start data generation runners
+	RunningThreadCount = Landscape->GetComponentResolution().Y + 1;
 
 	const FVector2D UV1Offset = GenerationDataCache.UV1Scale * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
-	for (int32 Y = -1; Y < GenerationDataCache.ComponentResolution.Y; Y++)
+	for (int32 Y = -1; Y < Landscape->GetComponentResolution().Y; Y++)
 	{
-		GenerationThreads[Y + 1]->InitializeRun(Y, VertexIndex, UV1Offset);
-		VertexIndex += GenerationDataCache.ComponentResolution.X + 1;
+		GenerationThreads[Y + 1]->QueueWork(Y, VertexIndex, UV1Offset);
+		VertexIndex += Landscape->GetComponentResolution().X + 1;
 	}
 }
 

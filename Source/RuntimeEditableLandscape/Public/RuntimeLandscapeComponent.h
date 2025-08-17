@@ -21,7 +21,7 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeComponent : public UProcedur
 	GENERATED_BODY()
 
 	friend class ARuntimeLandscape;
-	friend class FGenerateVertexRowDataThread;
+	friend class FGenerateVertexRowDataRunner;
 	friend class URuntimeLandscapeRebuildManager;
 
 public:

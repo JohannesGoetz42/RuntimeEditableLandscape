@@ -9,7 +9,7 @@
 #include "RuntimeLandscapeRebuildManager.generated.h"
 
 
-class FGenerateVertexRowDataThread;
+class FGenerateVertexRowDataRunner;
 class ARuntimeLandscape;
 class URuntimeLandscapeComponent;
 
@@ -29,7 +29,7 @@ struct FRuntimeLandscapeRebuildBuffer
 
 	// InputData
 	TArray<float> HeightValues;
-	
+
 	// Vertices
 	TArray<FVector> Vertices;
 	TArray<int32> Triangles;
@@ -52,7 +52,6 @@ struct FGenerationDataCache
 {
 	GENERATED_BODY()
 
-	FVector2D ComponentResolution;
 	FVector2D UV1Scale;
 	float VertexDistance;
 	float UVIncrement;
@@ -66,11 +65,12 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeRebuildManager : public UAct
 {
 	GENERATED_BODY()
 
-	friend class FGenerateVertexRowDataThread;
+	friend class FGenerateVertexRowDataRunner;
 
 public:
 	URuntimeLandscapeRebuildManager();
 	void QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild);
+	FORCEINLINE FQueuedThreadPool* GetThreadPool() const { return ThreadPool; }
 
 private:
 	UPROPERTY(VisibleAnywhere)
@@ -84,7 +84,8 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	uint8 RunningThreadCount;
 
-	TArray<FGenerateVertexRowDataThread*> GenerationThreads;
+	FQueuedThreadPool* ThreadPool;
+	TArray<FGenerateVertexRowDataRunner*> GenerationThreads;
 	TQueue<URuntimeLandscapeComponent*> RebuildQueue;
 
 	virtual void OnComponentCreated() override
@@ -92,10 +93,14 @@ private:
 		Super::OnComponentCreated();
 		Landscape = Cast<ARuntimeLandscape>(GetOwner());
 		check(Landscape);
+
+		InitializeBuffer();
+		InitializeGenerationCache();
+		InitializeRunners();
 	}
 
 	void InitializeGenerationCache();
-	void InitializeThreads();
+	void InitializeRunners();
 	void InitializeBuffer();
 
 	void StartRebuild();
@@ -109,7 +114,15 @@ private:
 		else
 		{
 			CurrentComponent = nullptr;
+			SetComponentTickEnabled(false);
 		}
+	}
+
+	void CancelRebuild()
+	{
+		CurrentComponent = nullptr;
+		RunningThreadCount = 0;
+		SetComponentTickEnabled(false);
 	}
 
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType,
