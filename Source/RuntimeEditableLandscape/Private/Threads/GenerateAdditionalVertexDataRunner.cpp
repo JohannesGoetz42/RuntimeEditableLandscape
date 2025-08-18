@@ -78,8 +78,15 @@ void FGenerateAdditionalVertexDataRunner::GenerateGrassTransformsAtVertex(const 
 	FLandscapeGrassVertexData& GrassData = RebuildManager->DataBuffer.GrassData[VertexIndex];
 	for (const FGrassVariety& Variety : SelectedGrass->GrassVarieties)
 	{
-		int32 RemainingInstanceCount = FMath::RoundToInt32(
-			RebuildManager->Landscape->GetAreaPerSquare() * Variety.GetDensity() * 0.00001f * Weight);
+		float InstanceCount = RebuildManager->Landscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * Weight;
+		int32 RemainingInstanceCount = FMath::FloorToInt(InstanceCount);
+
+		// round up based on decimal remainder
+		float Remainder = InstanceCount - RemainingInstanceCount;
+		if (FMath::RandRange(0.0f, 1.0f) < Remainder)
+		{
+			++RemainingInstanceCount;
+		}
 
 		GrassData.InstanceTransformsRelative.Empty(RemainingInstanceCount);
 		GrassData.GrassVariety = Variety;
