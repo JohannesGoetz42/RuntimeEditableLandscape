@@ -156,12 +156,16 @@ void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuf
 			GrassMesh->DestroyComponent();
 		}
 	}
+
 	GrassMeshes.Empty();
 
 	for (const FLandscapeGrassVertexData& GrassData : RebuildBuffer.GrassData)
 	{
-		UHierarchicalInstancedStaticMeshComponent* GrassMesh = FindOrAddGrassMesh(GrassData.GrassVariety);
-		GrassMesh->AddInstances(GrassData.InstanceTransforms, false);
+		if (GrassData.InstanceTransformsRelative.IsEmpty() == false)
+		{
+			UHierarchicalInstancedStaticMeshComponent* GrassMesh = FindOrAddGrassMesh(GrassData.GrassVariety);
+			GrassMesh->AddInstances(GrassData.InstanceTransformsRelative, false);
+		}
 	}
 
 #if WITH_EDITORONLY_DATA
@@ -211,9 +215,9 @@ void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuf
 #endif
 
 	TArray<FColor> VertexColors;
-	VertexColors.Init(FColor::White, RebuildBuffer.Vertices.Num());
+	VertexColors.Init(FColor::White, RebuildBuffer.VerticesRelative.Num());
 
-	CreateMeshSection(0, RebuildBuffer.Vertices, RebuildBuffer.Triangles, RebuildBuffer.Normals,
+	CreateMeshSection(0, RebuildBuffer.VerticesRelative, RebuildBuffer.Triangles, RebuildBuffer.Normals,
 	                  RebuildBuffer.UV0Coords,
 	                  RebuildBuffer.UV1Coords, RebuildBuffer.UV0Coords, RebuildBuffer.UV0Coords, VertexColors,
 	                  RebuildBuffer.Tangents, ParentLandscape->bUpdateCollision);

@@ -9,14 +9,23 @@
 #include "RuntimeLandscapeRebuildManager.generated.h"
 
 
-class FGenerateVertexRowDataRunner;
+struct FProcMeshTangent;
+class FGenerateAdditionalVertexDataRunner;
+class FGenerateVerticesRunner;
 class ARuntimeLandscape;
 class URuntimeLandscapeComponent;
+
+enum ERuntimeLandscapeRebuildState : uint8
+{
+	RLRS_None,
+	RLRS_BuildVertices,
+	RLRS_BuildAdditionalData
+};
 
 struct FLandscapeGrassVertexData
 {
 	FGrassVariety GrassVariety;
-	TArray<FTransform> InstanceTransforms;
+	TArray<FTransform> InstanceTransformsRelative;
 };
 
 USTRUCT()
@@ -31,18 +40,22 @@ struct FRuntimeLandscapeRebuildBuffer
 	TArray<float> HeightValues;
 
 	// Vertices
-	TArray<FVector> Vertices;
+	TArray<FVector> VerticesRelative;
 	TArray<int32> Triangles;
 
 	// UV
 	TArray<FVector2D> UV0Coords;
 	TArray<FVector2D> UV1Coords;
+	FVector2D UV1Offset;
+
 	// Tangents
 	TArray<FVector> Normals;
 	TArray<FProcMeshTangent> Tangents;
 
 	// Additional data
 	TArray<FLandscapeGrassVertexData> GrassData;
+
+	ERuntimeLandscapeRebuildState RebuildState = ERuntimeLandscapeRebuildState::RLRS_None;
 };
 
 USTRUCT()
@@ -66,13 +79,19 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeRebuildManager : public UAct
 {
 	GENERATED_BODY()
 
-	friend class FGenerateVertexRowDataRunner;
+	friend class FGenerateVerticesRunner;
+	friend class FGenerateAdditionalVertexDataRunner;
 
 public:
 	URuntimeLandscapeRebuildManager();
 	void QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild);
 	FORCEINLINE FQueuedThreadPool* GetThreadPool() const { return ThreadPool; }
-	void NotifyRunnerFinished(const FGenerateVertexRowDataRunner* FinishedRunner);
+	void NotifyRunnerFinished(const FGenerateAdditionalVertexDataRunner* FinishedRunner);
+
+	void NotifyRunnerFinished(const FGenerateVerticesRunner* FinishedRunner)
+	{
+		StartGenerateAdditionalData();
+	}
 
 private:
 	UPROPERTY(VisibleAnywhere)
@@ -86,25 +105,31 @@ private:
 	TQueue<URuntimeLandscapeComponent*> RebuildQueue;
 
 	FQueuedThreadPool* ThreadPool;
-	TArray<FGenerateVertexRowDataRunner*> GenerationRunners;
+	FGenerateVerticesRunner* VertexRunner;
+	TArray<FGenerateAdditionalVertexDataRunner*> AdditionalDataRunners;
 	std::atomic<int32> ActiveRunners;
 
-	virtual void OnComponentCreated() override
+	void Initialize()
 	{
-		Super::OnComponentCreated();
-		Landscape = Cast<ARuntimeLandscape>(GetOwner());
-		check(Landscape);
+		if (AdditionalDataRunners.IsEmpty())
+		{
+			Landscape = Cast<ARuntimeLandscape>(GetOwner());
+			check(Landscape);
 
-		InitializeBuffer();
-		InitializeGenerationCache();
-		InitializeRunners();
+			InitializeBuffer();
+			InitializeGenerationCache();
+			InitializeRunners();
+		}
 	}
 
 	void InitializeGenerationCache();
 	void InitializeRunners();
 	void InitializeBuffer();
 
+	/** 1st step: Rebuild vertex data on a single thread, since this is relatively fast */
 	void StartRebuild();
+	/** 2nd step: Rebuild additional data on multiple threads */
+	void StartGenerateAdditionalData();
 
 	void RebuildNextInQueue()
 	{

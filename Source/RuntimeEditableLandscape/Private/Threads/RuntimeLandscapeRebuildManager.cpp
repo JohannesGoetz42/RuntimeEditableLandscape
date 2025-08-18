@@ -6,7 +6,8 @@
 #include "KismetProceduralMeshLibrary.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
-#include "Threads/GenerateVertexRowDataRunner.h"
+#include "Threads/GenerateAdditionalVertexDataRunner.h"
+#include "Threads/GenerateVerticesRunner.h"
 
 URuntimeLandscapeRebuildManager::URuntimeLandscapeRebuildManager() : Super()
 {
@@ -26,14 +27,11 @@ void URuntimeLandscapeRebuildManager::QueueRebuild(URuntimeLandscapeComponent* C
 	{
 		CurrentComponent = ComponentToRebuild;
 		StartRebuild();
-		SetComponentTickEnabled(true);
 	}
 }
 
-
-void URuntimeLandscapeRebuildManager::NotifyRunnerFinished(const FGenerateVertexRowDataRunner* FinishedRunner)
+void URuntimeLandscapeRebuildManager::NotifyRunnerFinished(const FGenerateAdditionalVertexDataRunner* FinishedRunner)
 {
-	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Runner finished for Y: %i"), FinishedRunner->YCoordinate);
 	--ActiveRunners;
 }
 
@@ -46,10 +44,11 @@ void URuntimeLandscapeRebuildManager::InitializeGenerationCache()
 
 void URuntimeLandscapeRebuildManager::InitializeRunners()
 {
+	VertexRunner = new FGenerateVerticesRunner(this);
 	for (int32 i = 0; i < Landscape->GetComponentResolution().Y + 1; ++i)
 	{
-		auto* Thread = new FGenerateVertexRowDataRunner(this);
-		GenerationRunners.Add(Thread);
+		FGenerateAdditionalVertexDataRunner* AdditionalDataRunner = new FGenerateAdditionalVertexDataRunner(this);
+		AdditionalDataRunners.Add(AdditionalDataRunner);
 	}
 
 	ThreadPool = FQueuedThreadPool::Allocate();
@@ -64,10 +63,16 @@ void URuntimeLandscapeRebuildManager::InitializeBuffer()
 
 	DataBuffer = FRuntimeLandscapeRebuildBuffer();
 	DataBuffer.HeightValues.SetNumUninitialized(VertexAmount);
-	DataBuffer.Vertices.SetNumUninitialized(VertexAmount);
+	DataBuffer.VerticesRelative.SetNumUninitialized(VertexAmount);
 	DataBuffer.UV0Coords.SetNumUninitialized(VertexAmount);
 	DataBuffer.UV1Coords.SetNumUninitialized(VertexAmount);
 
+	// initialize the grass data with empty structs
+	DataBuffer.GrassData.Empty(VertexAmount);
+	for (int32 i = 0; i < VertexAmount; ++i)
+	{
+		DataBuffer.GrassData.Add(FLandscapeGrassVertexData());
+	}
 
 	DataBuffer.Triangles.Empty(
 		Landscape->GetComponentResolution().X * Landscape->GetComponentResolution().Y * 6);
@@ -96,11 +101,14 @@ void URuntimeLandscapeRebuildManager::InitializeBuffer()
 
 void URuntimeLandscapeRebuildManager::StartRebuild()
 {
+	Initialize();
+
 	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Rebuilding Landscape component %s %i..."), *GetOwner()->GetName(),
 	       CurrentComponent->Index);
 
 	FIntVector2 SectionCoordinates;
 	Landscape->GetComponentCoordinates(CurrentComponent->Index, SectionCoordinates);
+	DataBuffer.UV1Offset = GenerationDataCache.UV1Scale * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
 
 	// ensure the section data is valid
 	if (!ensure(CurrentComponent->InitialHeightValues.Num() == Landscape->GetTotalVertexAmountPerComponent()))
@@ -111,22 +119,30 @@ void URuntimeLandscapeRebuildManager::StartRebuild()
 		return;
 	}
 
+	DataBuffer.RebuildState = ERuntimeLandscapeRebuildState::RLRS_BuildVertices;
 	DataBuffer.HeightValues = CurrentComponent->InitialHeightValues;
 
 	// TODO: Clean up. Do I need vertex colors?
 	TArray<FColor> VertexColors;
+	// TODO: Apply layer data on VertexRunner
 	CurrentComponent->ApplyDataFromLayers(DataBuffer.HeightValues, VertexColors);
+	VertexRunner->QueueWork(DataBuffer.UV1Offset);
+}
 
+void URuntimeLandscapeRebuildManager::StartGenerateAdditionalData()
+{
+	DataBuffer.RebuildState = ERuntimeLandscapeRebuildState::RLRS_BuildAdditionalData;
 	int32 VertexIndex = 0;
 	// Start data generation runners
 	ActiveRunners = Landscape->GetComponentResolution().Y + 1;
 
-	const FVector2D UV1Offset = GenerationDataCache.UV1Scale * FVector2D(SectionCoordinates.X, SectionCoordinates.Y);
-	for (int32 Y = -1; Y < Landscape->GetComponentResolution().Y; Y++)
+	for (int32 Y = 0; Y < Landscape->GetComponentResolution().Y + 1; Y++)
 	{
-		GenerationRunners[Y + 1]->QueueWork(Y, VertexIndex, UV1Offset);
+		AdditionalDataRunners[Y]->QueueWork(Y, VertexIndex, DataBuffer.UV1Offset);
 		VertexIndex += Landscape->GetComponentResolution().X + 1;
 	}
+
+	SetComponentTickEnabled(true);
 }
 
 void URuntimeLandscapeRebuildManager::TickComponent(float DeltaTime, enum ELevelTick TickType,
@@ -134,7 +150,7 @@ void URuntimeLandscapeRebuildManager::TickComponent(float DeltaTime, enum ELevel
 {
 	if (ActiveRunners < 1)
 	{
-		UKismetProceduralMeshLibrary::CalculateTangentsForMesh(DataBuffer.Vertices, DataBuffer.Triangles,
+		UKismetProceduralMeshLibrary::CalculateTangentsForMesh(DataBuffer.VerticesRelative, DataBuffer.Triangles,
 		                                                       DataBuffer.UV0Coords, DataBuffer.Normals,
 		                                                       DataBuffer.Tangents);
 		CurrentComponent->FinishRebuild(DataBuffer);

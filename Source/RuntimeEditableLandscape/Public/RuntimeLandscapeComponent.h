@@ -21,7 +21,7 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeComponent : public UProcedur
 	GENERATED_BODY()
 
 	friend class ARuntimeLandscape;
-	friend class FGenerateVertexRowDataRunner;
+	friend class FGenerateVerticesRunner;
 	friend class URuntimeLandscapeRebuildManager;
 
 public:
@@ -47,10 +47,13 @@ public:
 
 	void Initialize(int32 ComponentIndex, const TArray<float>& HeightValuesInitial);
 
+	FORCEINLINE ARuntimeLandscape* GetParentLandscape() const { return ParentLandscape; }
 	FORCEINLINE const TSet<TObjectPtr<const ULandscapeLayerComponent>>& GetAffectingLayers() const
 	{
 		return AffectingLayers;
 	}
+
+	FORCEINLINE int32 GetComponentIndex() const { return Index; }
 
 	FVector2D GetRelativeVertexLocation(int32 VertexIndex) const;
 	virtual void DestroyComponent(bool bPromoteChildren = false) override;
@@ -70,7 +73,7 @@ protected:
 	int32 Index;
 	UPROPERTY()
 	TArray<UHierarchicalInstancedStaticMeshComponent*> GrassMeshes;
-	
+
 	TArray<float> HeightValues = TArray<float>();
 
 	UHierarchicalInstancedStaticMeshComponent* FindOrAddGrassMesh(const FGrassVariety& Variety);
