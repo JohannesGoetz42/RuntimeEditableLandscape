@@ -9,7 +9,7 @@
 
 FGenerateVertexRowDataRunner::FGenerateVertexRowDataRunner(URuntimeLandscapeRebuildManager* RebuildManager)
 {
-	this->RebuildManager = RebuildManager; 
+	this->RebuildManager = RebuildManager;
 }
 
 FGenerateVertexRowDataRunner::~FGenerateVertexRowDataRunner()
@@ -40,7 +40,7 @@ void FGenerateVertexRowDataRunner::DoThreadedWork()
 			VertexIndex++;
 		}
 
-		RebuildManager->RunningThreadCount--;
+		RebuildManager->NotifyRunnerFinished(this);
 		return;
 	}
 
@@ -52,7 +52,7 @@ void FGenerateVertexRowDataRunner::DoThreadedWork()
 	DataBuffer.UV0Coords[VertexIndex] = UV0;
 	DataBuffer.UV1Coords[VertexIndex] = UV0 * DataCache.UV1Scale + UV1Offset;
 	VertexIndex++;
-
+	
 	// generate triangle strip in X direction
 	for (int32 X = 0; X < Landscape->GetComponentResolution().X; X++)
 	{
@@ -68,31 +68,16 @@ void FGenerateVertexRowDataRunner::DoThreadedWork()
 
 		VertexIndex++;
 
-		const int32 T1 = YCoordinate * (Landscape->GetComponentResolution().X + 1) + X;
-		const int32 T2 = T1 + Landscape->GetComponentResolution().X + 1;
-		const int32 T3 = T1 + 1;
-
-		const TSet<int32>& VerticesInHole = RebuildManager->CurrentComponent->VerticesInHole;
-		if (VerticesInHole.Contains(T1) || VerticesInHole.Contains(T2) || VerticesInHole.Contains(T3) ||
-			VerticesInHole.Contains(T2 + 1))
-		{
-			continue;
-		}
-
-		int32 TriangleBaseIndex = VertexIndex * 6;
-		// add upper-left triangle
-
-		DataBuffer.Triangles[TriangleBaseIndex] = T1;
-		DataBuffer.Triangles[TriangleBaseIndex + 1] = T2;
-		DataBuffer.Triangles[TriangleBaseIndex + 2] = T3;
-
-		// add lower-right triangle
-		DataBuffer.Triangles[TriangleBaseIndex + 3] = T3;
-		DataBuffer.Triangles[TriangleBaseIndex + 4] = T2;
-		DataBuffer.Triangles[TriangleBaseIndex + 5] = T2 + 1;
+		//
+		// const TSet<int32>& VerticesInHole = RebuildManager->CurrentComponent->VerticesInHole;
+		// if (VerticesInHole.Contains(T1) || VerticesInHole.Contains(T2) || VerticesInHole.Contains(T3) ||
+		// 	VerticesInHole.Contains(T2 + 1))
+		// {
+		// 	continue;
+		// }
 	}
 
-	RebuildManager->RunningThreadCount--;
+	RebuildManager->NotifyRunnerFinished(this);
 }
 
 void FGenerateVertexRowDataRunner::GenerateGrassDataForVertex(const FVector& VertexLocation, int32 X, int32 Y)

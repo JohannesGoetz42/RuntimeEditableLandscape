@@ -33,6 +33,7 @@ struct FRuntimeLandscapeRebuildBuffer
 	// Vertices
 	TArray<FVector> Vertices;
 	TArray<int32> Triangles;
+
 	// UV
 	TArray<FVector2D> UV0Coords;
 	TArray<FVector2D> UV1Coords;
@@ -71,6 +72,7 @@ public:
 	URuntimeLandscapeRebuildManager();
 	void QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild);
 	FORCEINLINE FQueuedThreadPool* GetThreadPool() const { return ThreadPool; }
+	void NotifyRunnerFinished(const FGenerateVertexRowDataRunner* FinishedRunner);
 
 private:
 	UPROPERTY(VisibleAnywhere)
@@ -81,12 +83,11 @@ private:
 	FGenerationDataCache GenerationDataCache;
 	UPROPERTY(VisibleAnywhere)
 	FRuntimeLandscapeRebuildBuffer DataBuffer;
-	UPROPERTY(VisibleAnywhere)
-	uint8 RunningThreadCount;
+	TQueue<URuntimeLandscapeComponent*> RebuildQueue;
 
 	FQueuedThreadPool* ThreadPool;
-	TArray<FGenerateVertexRowDataRunner*> GenerationThreads;
-	TQueue<URuntimeLandscapeComponent*> RebuildQueue;
+	TArray<FGenerateVertexRowDataRunner*> GenerationRunners;
+	std::atomic<int32> ActiveRunners;
 
 	virtual void OnComponentCreated() override
 	{
@@ -121,7 +122,7 @@ private:
 	void CancelRebuild()
 	{
 		CurrentComponent = nullptr;
-		RunningThreadCount = 0;
+		ActiveRunners = 0;
 		SetComponentTickEnabled(false);
 	}
 

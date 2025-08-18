@@ -38,6 +38,7 @@ private:
 	}
 
 	virtual void DoThreadedWork() override;
+
 	virtual void Abandon() override
 	{
 		RebuildManager->CancelRebuild();

@@ -158,15 +158,6 @@ void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuf
 	}
 	GrassMeshes.Empty();
 
-	UE_LOG(RuntimeEditableLandscape, Display, TEXT("Finished all generation threads. Merging and applying data..."));
-
-	GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
-
-	const FVector2D ComponentResolution = ParentLandscape->GetComponentResolution();
-
-	TArray<int32> Triangles;
-	Triangles.Reserve(ComponentResolution.X * ComponentResolution.Y * 2);
-
 	for (const FLandscapeGrassVertexData& GrassData : RebuildBuffer.GrassData)
 	{
 		UHierarchicalInstancedStaticMeshComponent* GrassMesh = FindOrAddGrassMesh(GrassData.GrassVariety);
@@ -222,13 +213,16 @@ void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuf
 	TArray<FColor> VertexColors;
 	VertexColors.Init(FColor::White, RebuildBuffer.Vertices.Num());
 
-	CreateMeshSection(0, RebuildBuffer.Vertices, Triangles, RebuildBuffer.Normals, RebuildBuffer.UV0Coords,
+	CreateMeshSection(0, RebuildBuffer.Vertices, RebuildBuffer.Triangles, RebuildBuffer.Normals,
+	                  RebuildBuffer.UV0Coords,
 	                  RebuildBuffer.UV1Coords, RebuildBuffer.UV0Coords, RebuildBuffer.UV0Coords, VertexColors,
 	                  RebuildBuffer.Tangents, ParentLandscape->bUpdateCollision);
 
 	RemoveFoliageAffectedByLayer();
 	UpdateNavigation();
 
+	UE_LOG(RuntimeEditableLandscape, Display, TEXT("	Finished rebuilding Landscape component %s %i..."),
+	       *GetOwner()->GetName(), Index);
 	bIsStale = false;
 }
 
