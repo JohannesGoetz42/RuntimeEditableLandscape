@@ -6,8 +6,8 @@
 #include "KismetProceduralMeshLibrary.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
-#include "Threads/GenerateAdditionalVertexDataRunner.h"
-#include "Threads/GenerateVerticesRunner.h"
+#include "Threads/GenerateAdditionalVertexDataWorker.h"
+#include "Threads/GenerateVerticesWorker.h"
 
 URuntimeLandscapeRebuildManager::URuntimeLandscapeRebuildManager() : Super()
 {
@@ -30,11 +30,6 @@ void URuntimeLandscapeRebuildManager::QueueRebuild(URuntimeLandscapeComponent* C
 	}
 }
 
-void URuntimeLandscapeRebuildManager::NotifyRunnerFinished(const FGenerateAdditionalVertexDataRunner* FinishedRunner)
-{
-	--ActiveRunners;
-}
-
 void URuntimeLandscapeRebuildManager::InitializeGenerationCache()
 {
 	GenerationDataCache.UV1Scale = FVector2D::One() / Landscape->GetComponentAmount();
@@ -44,10 +39,10 @@ void URuntimeLandscapeRebuildManager::InitializeGenerationCache()
 
 void URuntimeLandscapeRebuildManager::InitializeRunners()
 {
-	VertexRunner = new FGenerateVerticesRunner(this);
+	VertexRunner = new FGenerateVerticesWorker(this);
 	for (int32 i = 0; i < Landscape->GetComponentResolution().Y + 1; ++i)
 	{
-		FGenerateAdditionalVertexDataRunner* AdditionalDataRunner = new FGenerateAdditionalVertexDataRunner(this);
+		FGenerateAdditionalVertexDataWorker* AdditionalDataRunner = new FGenerateAdditionalVertexDataWorker(this);
 		AdditionalDataRunners.Add(AdditionalDataRunner);
 	}
 
@@ -126,7 +121,10 @@ void URuntimeLandscapeRebuildManager::StartRebuild()
 	TArray<FColor> VertexColors;
 	// TODO: Apply layer data on VertexRunner
 	CurrentComponent->ApplyDataFromLayers(DataBuffer.HeightValues, VertexColors);
+
+	ActiveRunners = 1;
 	VertexRunner->QueueWork(DataBuffer.UV1Offset);
+	SetComponentTickEnabled(true);
 }
 
 void URuntimeLandscapeRebuildManager::StartGenerateAdditionalData()
@@ -141,8 +139,6 @@ void URuntimeLandscapeRebuildManager::StartGenerateAdditionalData()
 		AdditionalDataRunners[Y]->QueueWork(Y, VertexIndex, DataBuffer.UV1Offset);
 		VertexIndex += Landscape->GetComponentResolution().X + 1;
 	}
-
-	SetComponentTickEnabled(true);
 }
 
 void URuntimeLandscapeRebuildManager::TickComponent(float DeltaTime, enum ELevelTick TickType,
@@ -150,10 +146,17 @@ void URuntimeLandscapeRebuildManager::TickComponent(float DeltaTime, enum ELevel
 {
 	if (ActiveRunners < 1)
 	{
-		UKismetProceduralMeshLibrary::CalculateTangentsForMesh(DataBuffer.VerticesRelative, DataBuffer.Triangles,
-		                                                       DataBuffer.UV0Coords, DataBuffer.Normals,
-		                                                       DataBuffer.Tangents);
-		CurrentComponent->FinishRebuild(DataBuffer);
-		RebuildNextInQueue();
+		switch (DataBuffer.RebuildState)
+		{
+		case RLRS_BuildVertices:
+			StartGenerateAdditionalData();
+			break;
+		case RLRS_BuildAdditionalData:
+			CurrentComponent->FinishRebuild(DataBuffer);
+			RebuildNextInQueue();
+			break;
+		default:
+			checkNoEntry();
+		}
 	}
 }

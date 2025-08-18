@@ -14,13 +14,13 @@ class URuntimeLandscapeComponent;
 class ARuntimeLandscape;
 struct FGrassVariety;
 
-class FGenerateVerticesRunner : public IQueuedWork
+class FGenerateVerticesWorker : public IQueuedWork
 {
 	friend class URuntimeLandscapeRebuildManager;
 
 public:
-	FGenerateVerticesRunner(URuntimeLandscapeRebuildManager* RebuildManager);
-	virtual ~FGenerateVerticesRunner() override;
+	FGenerateVerticesWorker(URuntimeLandscapeRebuildManager* RebuildManager);
+	virtual ~FGenerateVerticesWorker() override;
 
 private:
 	TObjectPtr<URuntimeLandscapeRebuildManager> RebuildManager;

@@ -1,22 +1,23 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Threads/GenerateVerticesRunner.h"
+#include "Threads/GenerateVerticesWorker.h"
 
+#include "KismetProceduralMeshLibrary.h"
 #include "RuntimeLandscape.h"
 #include "Threads/RuntimeLandscapeRebuildManager.h"
 
-FGenerateVerticesRunner::FGenerateVerticesRunner(URuntimeLandscapeRebuildManager* RebuildManager)
+FGenerateVerticesWorker::FGenerateVerticesWorker(URuntimeLandscapeRebuildManager* RebuildManager)
 {
 	this->RebuildManager = RebuildManager;
 }
 
-FGenerateVerticesRunner::~FGenerateVerticesRunner()
+FGenerateVerticesWorker::~FGenerateVerticesWorker()
 {
 	checkNoEntry();
 }
 
-void FGenerateVerticesRunner::DoThreadedWork()
+void FGenerateVerticesWorker::DoThreadedWork()
 {
 	const TArray<float>& HeightValues = RebuildManager->DataBuffer.HeightValues;
 	const ARuntimeLandscape* Landscape = RebuildManager->Landscape;
@@ -70,6 +71,10 @@ void FGenerateVerticesRunner::DoThreadedWork()
 			// }
 		}
 	}
+
+	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(DataBuffer.VerticesRelative, DataBuffer.Triangles,
+	                                                       DataBuffer.UV0Coords, DataBuffer.Normals,
+	                                                       DataBuffer.Tangents);
 
 	RebuildManager->NotifyRunnerFinished(this);
 }

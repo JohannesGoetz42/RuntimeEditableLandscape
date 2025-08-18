@@ -1,24 +1,25 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Threads/GenerateAdditionalVertexDataRunner.h"
+#include "Threads/GenerateAdditionalVertexDataWorker.h"
 
 #include "LandscapeGrassType.h"
 #include "RuntimeLandscapeComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "Threads/RuntimeLandscapeRebuildManager.h"
 
-FGenerateAdditionalVertexDataRunner::FGenerateAdditionalVertexDataRunner(
+FGenerateAdditionalVertexDataWorker::FGenerateAdditionalVertexDataWorker(
 	URuntimeLandscapeRebuildManager* RebuildManager)
 {
 	this->RebuildManager = RebuildManager;
 }
 
-FGenerateAdditionalVertexDataRunner::~FGenerateAdditionalVertexDataRunner()
+FGenerateAdditionalVertexDataWorker::~FGenerateAdditionalVertexDataWorker()
 {
 	checkNoEntry();
 }
 
-void FGenerateAdditionalVertexDataRunner::GenerateGrassDataForVertex(const int32 VertexIndex, int32 X)
+void FGenerateAdditionalVertexDataWorker::GenerateGrassDataForVertex(const int32 VertexIndex, int32 X)
 {
 	// Don't add grass at first row or column, since it overlaps with the last row or column of neighboring component
 	if (YCoordinate == 0 || X == 0)
@@ -27,7 +28,7 @@ void FGenerateAdditionalVertexDataRunner::GenerateGrassDataForVertex(const int32
 		return;
 	}
 
-	const ULandscapeGrassType* SelectedGrass = nullptr;
+	const FGrassTypeSettings* SelectedGrass = nullptr;
 	float HighestWeight = 0;
 
 	bool bIsLayerApplied = false;
@@ -37,7 +38,7 @@ void FGenerateAdditionalVertexDataRunner::GenerateGrassDataForVertex(const int32
 		if (LayerWeightData.Value >= HighestWeight && LayerWeightData.Value > 0.2f)
 		{
 			HighestWeight = LayerWeightData.Value;
-			SelectedGrass = LayerWeightData.Key->GrassType;
+			SelectedGrass = &LayerWeightData.Key->GrassTypeSettings;
 			bIsLayerApplied = true;
 		}
 	}
@@ -53,32 +54,50 @@ void FGenerateAdditionalVertexDataRunner::GenerateGrassDataForVertex(const int32
 		{
 			if (HeightBasedData.MinHeight < VertexHeight && HeightBasedData.MaxHeight > VertexHeight)
 			{
-				SelectedGrass = HeightBasedData.Grass;
+				SelectedGrass = &HeightBasedData.Grass;
 				HighestWeight = 1.0f;
 			}
 		}
 	}
 
-	if (SelectedGrass)
-	{
-		GenerateGrassTransformsAtVertex(SelectedGrass, VertexIndex, HighestWeight);
-	}
 	// if no grass is selected, clean data carried over from previous run
-	else
+	if (TryGenerateGrassTransformsAtVertex(SelectedGrass, VertexIndex, HighestWeight) == false)
 	{
 		RebuildManager->DataBuffer.GrassData[VertexIndex].InstanceTransformsRelative.Empty();
 	}
 }
 
-void FGenerateAdditionalVertexDataRunner::GenerateGrassTransformsAtVertex(const ULandscapeGrassType* SelectedGrass,
-                                                                          const int32 VertexIndex, float Weight)
+bool FGenerateAdditionalVertexDataWorker::TryGenerateGrassTransformsAtVertex(const FGrassTypeSettings* SelectedGrass,
+                                                                             const int32 VertexIndex,
+                                                                             float Weight) const
 {
-	const FVector& VertexRelativeLocation = RebuildManager->DataBuffer.VerticesRelative[VertexIndex];
-
-	FLandscapeGrassVertexData& GrassData = RebuildManager->DataBuffer.GrassData[VertexIndex];
-	for (const FGrassVariety& Variety : SelectedGrass->GrassVarieties)
+	if (!SelectedGrass || !SelectedGrass->GrassType)
 	{
-		float InstanceCount = RebuildManager->Landscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f * Weight;
+		return false;
+	}
+
+
+	const FVector& Normal = RebuildManager->DataBuffer.Normals[VertexIndex];
+
+	float Roll;
+	float Pitch;
+	UKismetMathLibrary::GetSlopeDegreeAngles(FVector::RightVector, Normal, FVector::UpVector, Pitch, Roll);
+	// don't generate grass data if the vertex normal is steeper than the max
+	if (SelectedGrass->MaxSlopeAngle > 0.0f
+		&& (FMath::Abs(Roll) > SelectedGrass->MaxSlopeAngle
+			|| FMath::Abs(Pitch) > SelectedGrass->MaxSlopeAngle))
+	{
+		return false;
+	}
+
+	FRotator SurfaceAlignmentRotation = UKismetMathLibrary::MakeRotFromZ(Normal);
+	const FVector& VertexRelativeLocation = RebuildManager->DataBuffer.VerticesRelative[VertexIndex];
+	FLandscapeGrassVertexData& GrassData = RebuildManager->DataBuffer.GrassData[VertexIndex];
+
+	for (const FGrassVariety& Variety : SelectedGrass->GrassType->GrassVarieties)
+	{
+		float InstanceCount = RebuildManager->Landscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f *
+			Weight;
 		int32 RemainingInstanceCount = FMath::FloorToInt(InstanceCount);
 
 		// round up based on decimal remainder
@@ -90,13 +109,14 @@ void FGenerateAdditionalVertexDataRunner::GenerateGrassTransformsAtVertex(const 
 
 		GrassData.InstanceTransformsRelative.Empty(RemainingInstanceCount);
 		GrassData.GrassVariety = Variety;
+
 		while (RemainingInstanceCount > 0)
 		{
 			FVector GrassLocationRelative;
 			GetRandomGrassLocation(VertexRelativeLocation, GrassLocationRelative);
 
-			FRotator Rotation;
-			GetRandomGrassRotation(Variety, Rotation);
+			FRotator Rotation = SurfaceAlignmentRotation;
+			// GetRandomGrassRotation(Variety, Rotation);
 
 			FVector Scale;
 			GetRandomGrassScale(Variety, Scale);
@@ -106,9 +126,11 @@ void FGenerateAdditionalVertexDataRunner::GenerateGrassTransformsAtVertex(const 
 			--RemainingInstanceCount;
 		}
 	}
+
+	return true;
 }
 
-void FGenerateAdditionalVertexDataRunner::GetRandomGrassRotation(const FGrassVariety& Variety,
+void FGenerateAdditionalVertexDataWorker::GetRandomGrassRotation(const FGrassVariety& Variety,
                                                                  FRotator& OutRotation) const
 {
 	if (Variety.RandomRotation)
@@ -118,7 +140,7 @@ void FGenerateAdditionalVertexDataRunner::GetRandomGrassRotation(const FGrassVar
 	}
 }
 
-void FGenerateAdditionalVertexDataRunner::GetRandomGrassLocation(const FVector& VertexRelativeLocation,
+void FGenerateAdditionalVertexDataWorker::GetRandomGrassLocation(const FVector& VertexRelativeLocation,
                                                                  FVector& OutGrassLocation) const
 {
 	float PosX = FMath::RandRange(-0.5f, 0.5f);
@@ -128,7 +150,7 @@ void FGenerateAdditionalVertexDataRunner::GetRandomGrassLocation(const FVector& 
 	OutGrassLocation = VertexRelativeLocation + FVector(PosX * SideLength, PosY * SideLength, 0.0f);
 }
 
-void FGenerateAdditionalVertexDataRunner::GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const
+void FGenerateAdditionalVertexDataWorker::GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const
 {
 	switch (Variety.Scaling)
 	{
@@ -151,7 +173,7 @@ void FGenerateAdditionalVertexDataRunner::GetRandomGrassScale(const FGrassVariet
 	}
 }
 
-void FGenerateAdditionalVertexDataRunner::DoThreadedWork()
+void FGenerateAdditionalVertexDataWorker::DoThreadedWork()
 {
 	// skip first column of vertices (since it overlaps with last column of neighbor)
 	int32 VertexIndex = StartIndex;

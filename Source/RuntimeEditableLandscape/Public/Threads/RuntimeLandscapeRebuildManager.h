@@ -10,8 +10,8 @@
 
 
 struct FProcMeshTangent;
-class FGenerateAdditionalVertexDataRunner;
-class FGenerateVerticesRunner;
+class FGenerateAdditionalVertexDataWorker;
+class FGenerateVerticesWorker;
 class ARuntimeLandscape;
 class URuntimeLandscapeComponent;
 
@@ -79,18 +79,22 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeRebuildManager : public UAct
 {
 	GENERATED_BODY()
 
-	friend class FGenerateVerticesRunner;
-	friend class FGenerateAdditionalVertexDataRunner;
+	friend class FGenerateVerticesWorker;
+	friend class FGenerateAdditionalVertexDataWorker;
 
 public:
 	URuntimeLandscapeRebuildManager();
 	void QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild);
 	FORCEINLINE FQueuedThreadPool* GetThreadPool() const { return ThreadPool; }
-	void NotifyRunnerFinished(const FGenerateAdditionalVertexDataRunner* FinishedRunner);
 
-	void NotifyRunnerFinished(const FGenerateVerticesRunner* FinishedRunner)
+	FORCEINLINE void NotifyRunnerFinished(const FGenerateAdditionalVertexDataWorker* FinishedRunner)
 	{
-		StartGenerateAdditionalData();
+		--ActiveRunners;
+	}
+
+	FORCEINLINE void NotifyRunnerFinished(const FGenerateVerticesWorker* FinishedRunner)
+	{
+		--ActiveRunners;
 	}
 
 private:
@@ -105,8 +109,8 @@ private:
 	TQueue<URuntimeLandscapeComponent*> RebuildQueue;
 
 	FQueuedThreadPool* ThreadPool;
-	FGenerateVerticesRunner* VertexRunner;
-	TArray<FGenerateAdditionalVertexDataRunner*> AdditionalDataRunners;
+	FGenerateVerticesWorker* VertexRunner;
+	TArray<FGenerateAdditionalVertexDataWorker*> AdditionalDataRunners;
 	std::atomic<int32> ActiveRunners;
 
 	void Initialize()

@@ -99,7 +99,7 @@ struct FHeightBasedLandscapeData
 	UPROPERTY(EditAnywhere)
 	float MaxHeight = FLT_MAX;
 	UPROPERTY(EditAnywhere)
-	TObjectPtr<ULandscapeGrassType> Grass;
+	FGrassTypeSettings Grass;
 };
 
 UCLASS(Blueprintable, BlueprintType)
