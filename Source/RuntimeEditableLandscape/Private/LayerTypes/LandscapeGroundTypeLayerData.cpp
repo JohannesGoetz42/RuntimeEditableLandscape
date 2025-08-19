@@ -6,55 +6,20 @@
 #include "LandscapeLayerComponent.h"
 #include "RuntimeLandscape.h"
 #include "Components/BoxComponent.h"
-#include "Engine/Canvas.h"
-#include "Kismet/KismetRenderingLibrary.h"
 
 void ULandscapeGroundTypeLayerData::ApplyToLandscape(ARuntimeLandscape* Landscape,
                                                      const ULandscapeLayerComponent* LandscapeLayerComponent) const
 {
-	const FRuntimeLandscapeGroundTypeLayerSet* LayerSet = Landscape->TryGetLayerSetForGroundType(GroundType);
-	if (ensure(LayerSet))
+	if (ensure(GroundType))
 	{
-		FGroundTypeBrushData BrushData = Landscape->GetGroundTypeBrushes().FindRef(
-			LandscapeLayerComponent->GetShape());
-		UMaterialInstanceDynamic* MaskBrushMaterial = BrushData.BrushMaterialInstance;
-		if (ensure(MaskBrushMaterial))
-		{
-			const UBoxComponent* BoundingBox = LandscapeLayerComponent->GetOwner()->GetComponentByClass<
-				UBoxComponent>();
-			if (ensure(BoundingBox))
-			{
-				UCanvas* Canvas;
-				FDrawToRenderTargetContext RenderTargetContext;
-				FVector2D RenderTargetSize;
-				UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(GetWorld(), LayerSet->LayerRenderTarget, Canvas,
-				                                                       RenderTargetSize,
-				                                                       RenderTargetContext);
+		const UBoxComponent* BoundingBox = LandscapeLayerComponent->GetOwner()->GetComponentByClass<
+			UBoxComponent>();
+		const FVector& BoxExtent = BoundingBox->GetScaledBoxExtent();
 
-				const AActor* LayerOwner = LandscapeLayerComponent->GetOwner();
-				const FVector2D LandscapeSize = Landscape->GetLandscapeSize();
-				const FVector BoxExtent = BoundingBox->GetScaledBoxExtent();
+		ELayerShape Shape = LandscapeLayerComponent->GetShape();
 
-				// calculate Position
-				const FVector RelativePosition = LayerOwner->GetActorLocation() - Landscape->GetOriginLocation() -
-					BoxExtent;
-				const FVector2D Position = FVector2D(RelativePosition.X / LandscapeSize.X,
-				                                     RelativePosition.Y / LandscapeSize.Y);
-				const FVector2D ScreenPosition = FVector2D(Position.X * Canvas->SizeX, Position.Y * Canvas->SizeY);
-
-				// calculate brush size
-				const float AspectRatio = Canvas->SizeY / Canvas->SizeX;
-				const float ScaleFactor = RenderTargetSize.X / LandscapeSize.X;
-				const FVector BoxSize = BoxExtent * 2.0f;
-				const FVector2D BrushSize = FVector2D(BoxSize.X, BoxSize.Y * AspectRatio) * ScaleFactor;
-
-				const float Yaw = LayerOwner->GetActorRotation().Yaw;
-				FLinearColor ColorChannel = LayerSet->GetColorChannelForLayer(GroundType);
-				MaskBrushMaterial->SetVectorParameterValue(MATERIAL_PARAMETER_GROUND_TYPE_LAYER_COLOR, ColorChannel);
-
-				Canvas->K2_DrawMaterial(MaskBrushMaterial, ScreenPosition, BrushSize, FVector2D::Zero(),
-				                        FVector2D::UnitVector, Yaw);
-			}
-		}
+		const FTransform& WorldTransform = LandscapeLayerComponent->GetOwner()->GetActorTransform();
+		
+		Landscape->DrawGroundType(GroundType, Shape, WorldTransform, BoxExtent);
 	}
 }

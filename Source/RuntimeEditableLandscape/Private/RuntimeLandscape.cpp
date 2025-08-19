@@ -9,8 +9,10 @@
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
 #include "Chaos/HeightField.h"
+#include "Engine/Canvas.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Kismet/KismetRenderingLibrary.h"
+#include "LayerTypes/LandscapeGroundTypeLayerData.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
 #include "Threads/RuntimeLandscapeRebuildManager.h"
 
@@ -31,7 +33,7 @@ TArray<FName> FRuntimeLandscapeGroundTypeLayerSet::GetLayerNames() const
 int32 FRuntimeLandscapeGroundTypeLayerSet::GetPixelIndexForCoordinates(FIntVector2 VertexCoords) const
 {
 	int32 Result = VertexCoords.X;
-	Result += VertexCoords.Y * VertexWeightRenderTarget->SizeX;
+	Result += VertexCoords.Y * RenderTarget->SizeX;
 	return Result;
 }
 
@@ -66,6 +68,54 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 		{
 			Component->AddLandscapeLayer(LayerToAdd);
 		}
+	}
+}
+
+void ARuntimeLandscape::DrawGroundType(const ULandscapeGroundTypeData* GroundType, ELayerShape Shape,
+                                       const FTransform& WorldTransform, const FVector& BrushExtent)
+{
+	FRuntimeLandscapeGroundTypeLayerSet* LayerSet = nullptr;
+	for (FRuntimeLandscapeGroundTypeLayerSet& CurrentLayerSet : GroundLayerSets)
+	{
+		if (CurrentLayerSet.GroundTypes.Contains(GroundType))
+		{
+			LayerSet = &CurrentLayerSet;
+			break;
+		}
+	}
+
+	FGroundTypeBrushData BrushData = GroundTypeBrushes.FindRef(Shape);
+	UMaterialInstanceDynamic* MaskBrushMaterial = BrushData.BrushMaterialInstance;
+
+	if (ensure(MaskBrushMaterial && LayerSet))
+	{
+		UCanvas* Canvas;
+		FDrawToRenderTargetContext RenderTargetContext;
+		FVector2D RenderTargetSize;
+		UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(GetWorld(), LayerSet->RenderTarget, Canvas,
+		                                                       RenderTargetSize,
+		                                                       RenderTargetContext);
+
+		// calculate Position
+		const FVector RelativePosition = WorldTransform.GetLocation() - GetOriginLocation() - BrushExtent;
+		const FVector2D Position = FVector2D(RelativePosition.X / LandscapeSize.X,
+		                                     RelativePosition.Y / LandscapeSize.Y);
+		const FVector2D ScreenPosition = FVector2D(Position.X * Canvas->SizeX, Position.Y * Canvas->SizeY);
+
+		// calculate brush size
+		const float AspectRatio = Canvas->SizeY / Canvas->SizeX;
+		const float ScaleFactor = RenderTargetSize.X / LandscapeSize.X;
+		const FVector BoxSize = BrushExtent * 2.0f;
+		const FVector2D BrushSize = FVector2D(BoxSize.X, BoxSize.Y * AspectRatio) * ScaleFactor;
+
+		const float Yaw = WorldTransform.GetRotation().Rotator().Yaw;
+		FLinearColor ColorChannel = LayerSet->GetColorChannelForLayer(GroundType);
+		MaskBrushMaterial->SetVectorParameterValue(MATERIAL_PARAMETER_GROUND_TYPE_LAYER_COLOR, ColorChannel);
+
+		Canvas->K2_DrawMaterial(MaskBrushMaterial, ScreenPosition, BrushSize, FVector2D::Zero(),
+		                        FVector2D::UnitVector, Yaw);
+
+		UpdateVertexLayerWeights(*LayerSet);
 	}
 }
 
@@ -254,6 +304,14 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 		FVector2D((SectionCoordinates.X + 1) * SectionSize.X, (SectionCoordinates.Y + 1) * SectionSize.Y));
 }
 
+void ARuntimeLandscape::UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLayerSet& LayerSet)
+{
+	FImage MaskImage;
+	FImageUtils::GetRenderTargetImage(LayerSet.RenderTarget, MaskImage);
+	TArrayView64<FColor> MaskValues = MaskImage.AsBGRA8();
+	LayerSet.VertexLayerWeights = MaskValues;
+}
+
 void ARuntimeLandscape::BakeLandscapeLayers()
 {
 	if (ParentLandscape)
@@ -263,24 +321,14 @@ void ARuntimeLandscape::BakeLandscapeLayers()
 		for (FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
 		{
 			const TArray<FName>& LayerNames = LayerSet.GetLayerNames();
-			if (LayerSet.LayerRenderTarget)
+			if (LayerSet.RenderTarget)
 			{
-				LayerSet.LayerRenderTarget->SizeX = FMath::RoundToInt(PaintLayerResolution * LandscapeSize.X);
-				LayerSet.LayerRenderTarget->SizeY = FMath::RoundToInt(PaintLayerResolution * LandscapeSize.Y);
-				ParentLandscape->RenderWeightmaps(GetActorTransform(), Box2D, LayerNames, LayerSet.LayerRenderTarget);
-			}
-			if (LayerSet.VertexWeightRenderTarget)
-			{
-				LayerSet.VertexWeightRenderTarget->SizeX = MeshResolution.X + 1;
-				LayerSet.VertexWeightRenderTarget->SizeY = MeshResolution.Y + 1;
+				LayerSet.RenderTarget->SizeX = MeshResolution.X + 1;
+				LayerSet.RenderTarget->SizeY = MeshResolution.Y + 1;
 				ParentLandscape->RenderWeightmaps(GetActorTransform(), Box2D, LayerNames,
-				                                  LayerSet.VertexWeightRenderTarget);
+				                                  LayerSet.RenderTarget);
 
-				FImage MaskImage;
-				FImageUtils::GetRenderTargetImage(LayerSet.VertexWeightRenderTarget, MaskImage);
-
-				TArrayView64<FColor> MaskValues = MaskImage.AsBGRA8();
-				LayerSet.VertexLayerWeights = MaskValues;
+				UpdateVertexLayerWeights(LayerSet);
 			}
 		}
 	}

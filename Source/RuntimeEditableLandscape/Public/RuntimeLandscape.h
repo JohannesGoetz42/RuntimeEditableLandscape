@@ -42,14 +42,8 @@ struct FRuntimeLandscapeGroundTypeLayerSet
 	}
 
 	UPROPERTY(EditAnywhere)
-	/**
-	 * Render target used as material input.
-	 * Has a higher resolution than the vertex resolution
-	 */
-	TObjectPtr<UTextureRenderTarget2D> LayerRenderTarget;
-	UPROPERTY(EditAnywhere)
 	/** Render target that has a pixel for every vertex on the landscape */
-	TObjectPtr<UTextureRenderTarget2D> VertexWeightRenderTarget;
+	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
 	UPROPERTY(EditAnywhere, meta = (EditFixedSize))
 	TArray<const ULandscapeGroundTypeData*> GroundTypes;
 	UPROPERTY()
@@ -129,7 +123,7 @@ public:
 	 * @param LayerToAdd The added landscape layer
 	 */
 	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd);
-
+	void DrawGroundType(const ULandscapeGroundTypeData* GroundType, ELayerShape Shape, const FTransform& WorldTransform, const FVector& BrushExtent);
 	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer);
 	TMap<const ULandscapeGroundTypeData*, float> GetGroundTypeLayerWeightsAtVertexCoordinates(
 		int32 SectionIndex, int32 X, int32 Y) const;
@@ -267,6 +261,11 @@ protected:
 
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
+	
+	/**
+	 * Updates the vertex layer weights for the provided ground type layer
+	 */
+	static void UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLayerSet& LayerSet);
 
 	virtual void PostLoad() override;
 	virtual void BeginPlay() override;
