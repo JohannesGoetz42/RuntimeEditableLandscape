@@ -28,6 +28,16 @@ struct FLandscapeGrassVertexData
 	TArray<FTransform> InstanceTransformsRelative;
 };
 
+struct FLandscapeAdditionalData
+{
+	TMap<const UStaticMesh*, FLandscapeGrassVertexData> GrassData;
+
+	void ClearData()
+	{
+		GrassData.Empty();
+	}
+};
+
 USTRUCT()
 /**
  * Stores data required to rebuild a single runtime landscape component
@@ -53,7 +63,7 @@ struct FRuntimeLandscapeRebuildBuffer
 	TArray<FProcMeshTangent> Tangents;
 
 	// Additional data
-	TArray<FLandscapeGrassVertexData> GrassData;
+	TArray<FLandscapeAdditionalData> AdditionalData;
 
 	ERuntimeLandscapeRebuildState RebuildState = ERuntimeLandscapeRebuildState::RLRS_None;
 };
@@ -96,7 +106,7 @@ public:
 	{
 		--ActiveRunners;
 	}
-	
+
 	TArray<int32> GenerateTriangleArray(const TSet<int32>* HoleIndices) const;
 
 private:
@@ -131,7 +141,7 @@ private:
 	void InitializeGenerationCache();
 	void InitializeRunners();
 	void InitializeBuffer();
-	
+
 	/** 1st step: Rebuild vertex data on a single thread, since this is relatively fast */
 	void StartRebuild();
 	/** 2nd step: Rebuild additional data on multiple threads */

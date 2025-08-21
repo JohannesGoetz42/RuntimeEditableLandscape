@@ -62,10 +62,10 @@ void URuntimeLandscapeRebuildManager::InitializeBuffer()
 	DataBuffer.UV1Coords.SetNumUninitialized(VertexAmount);
 
 	// initialize the grass data with empty structs
-	DataBuffer.GrassData.Empty(VertexAmount);
+	DataBuffer.AdditionalData.Empty(VertexAmount);
 	for (int32 i = 0; i < VertexAmount; ++i)
 	{
-		DataBuffer.GrassData.Add(FLandscapeGrassVertexData());
+		DataBuffer.AdditionalData.Add(FLandscapeAdditionalData());
 	}
 
 	DataBuffer.Triangles = GenerateTriangleArray(nullptr);

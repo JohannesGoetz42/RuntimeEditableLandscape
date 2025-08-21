@@ -24,7 +24,7 @@ void FGenerateAdditionalVertexDataWorker::GenerateGrassDataForVertex(const int32
 	// Don't add grass at first row or column, since it overlaps with the last row or column of neighboring component
 	if (YCoordinate == 0 || X == 0)
 	{
-		RebuildManager->DataBuffer.GrassData[VertexIndex].InstanceTransformsRelative.Empty();
+		RebuildManager->DataBuffer.AdditionalData[VertexIndex].ClearData();
 		return;
 	}
 
@@ -60,20 +60,19 @@ void FGenerateAdditionalVertexDataWorker::GenerateGrassDataForVertex(const int32
 		}
 	}
 
-	// if no grass is selected, clean data carried over from previous run
-	if (TryGenerateGrassTransformsAtVertex(SelectedGrass, VertexIndex, HighestWeight) == false)
-	{
-		RebuildManager->DataBuffer.GrassData[VertexIndex].InstanceTransformsRelative.Empty();
-	}
+	// clean data carried over from previous run
+	RebuildManager->DataBuffer.AdditionalData[VertexIndex].ClearData();
+
+	GenerateGrassTransformsAtVertex(SelectedGrass, VertexIndex, HighestWeight);
 }
 
-bool FGenerateAdditionalVertexDataWorker::TryGenerateGrassTransformsAtVertex(const FGrassTypeSettings* SelectedGrass,
+void FGenerateAdditionalVertexDataWorker::GenerateGrassTransformsAtVertex(const FGrassTypeSettings* SelectedGrass,
                                                                              const int32 VertexIndex,
                                                                              float Weight) const
 {
 	if (!SelectedGrass || !SelectedGrass->GrassType)
 	{
-		return false;
+		return;
 	}
 
 
@@ -87,15 +86,17 @@ bool FGenerateAdditionalVertexDataWorker::TryGenerateGrassTransformsAtVertex(con
 		&& (FMath::Abs(Roll) > SelectedGrass->MaxSlopeAngle
 			|| FMath::Abs(Pitch) > SelectedGrass->MaxSlopeAngle))
 	{
-		return false;
+		return;
 	}
 
 	FRotator SurfaceAlignmentRotation = UKismetMathLibrary::MakeRotFromZ(Normal);
 	const FVector& VertexRelativeLocation = RebuildManager->DataBuffer.VerticesRelative[VertexIndex];
-	FLandscapeGrassVertexData& GrassData = RebuildManager->DataBuffer.GrassData[VertexIndex];
+	FLandscapeAdditionalData& AdditionalData = RebuildManager->DataBuffer.AdditionalData[VertexIndex];
 
 	for (const FGrassVariety& Variety : SelectedGrass->GrassType->GrassVarieties)
 	{
+		FLandscapeGrassVertexData& GrassData = AdditionalData.GrassData.FindOrAdd(Variety.GrassMesh);
+
 		float InstanceCount = RebuildManager->Landscape->GetAreaPerSquare() * Variety.GetDensity() * 0.000001f *
 			Weight;
 		int32 RemainingInstanceCount = FMath::FloorToInt(InstanceCount);
@@ -126,8 +127,6 @@ bool FGenerateAdditionalVertexDataWorker::TryGenerateGrassTransformsAtVertex(con
 			--RemainingInstanceCount;
 		}
 	}
-
-	return true;
 }
 
 void FGenerateAdditionalVertexDataWorker::GetRandomGrassRotation(const FGrassVariety& Variety,

@@ -9,6 +9,7 @@
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
 #include "Chaos/HeightField.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/Canvas.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Kismet/KismetRenderingLibrary.h"
@@ -337,38 +338,14 @@ void ARuntimeLandscape::BakeLandscapeLayers()
 	}
 }
 
-#if WITH_EDITORONLY_DATA
-void ARuntimeLandscape::InitializeFromLandscape()
+void ARuntimeLandscape::Rebuild()
 {
-	if (!ParentLandscape)
+	TArray<UHierarchicalInstancedStaticMeshComponent*> InstancedMeshes;
+	GetComponents(InstancedMeshes);
+	for (UHierarchicalInstancedStaticMeshComponent* InstancedMesh : InstancedMeshes)
 	{
-		return;
+		InstancedMesh->DestroyComponent();
 	}
-
-	if (!LandscapeMaterial)
-	{
-		LandscapeMaterial = ParentLandscape->LandscapeMaterial;
-	}
-
-	HeightScale = ParentLandscape->GetActorScale().Z / FMath::Pow(2.0f, HeightValueBits);
-	ParentHeight = ParentLandscape->GetActorLocation().Z;
-
-	const FIntRect Rect = ParentLandscape->GetBoundingRect();
-	MeshResolution.X = Rect.Max.X - Rect.Min.X;
-	MeshResolution.Y = Rect.Max.Y - Rect.Min.Y;
-	FVector ParentOrigin;
-	FVector ParentExtent;
-	ParentLandscape->GetActorBounds(false, ParentOrigin, ParentExtent);
-	LandscapeSize = FVector2D(ParentExtent * FVector(2.0f));
-	const int32 ComponentSizeQuads = ParentLandscape->ComponentSizeQuads;
-	QuadSideLength = ParentExtent.X * 2 / MeshResolution.X;
-	ComponentSize = ComponentSizeQuads * QuadSideLength;
-	AreaPerSquare = FMath::Square(QuadSideLength);
-	ComponentAmount = FVector2D(MeshResolution.X / ComponentSizeQuads, MeshResolution.Y / ComponentSizeQuads);
-	ComponentResolution = MeshResolution / ComponentAmount;
-
-	VertexAmountPerComponent.X = MeshResolution.X / ComponentAmount.X + 1;
-	VertexAmountPerComponent.Y = MeshResolution.Y / ComponentAmount.Y + 1;
 
 	BakeLandscapeLayers();
 
@@ -414,6 +391,10 @@ void ARuntimeLandscape::InitializeFromLandscape()
 		LandscapeComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
 		LandscapeComponent->SetCanEverAffectNavigation(bCanEverAffectNavigation);
 
+		FVector ParentOrigin;
+		FVector ParentExtent;
+		ParentLandscape->GetActorBounds(false, ParentOrigin, ParentExtent);
+
 		// calculate index by position for more efficient access later
 		const FVector StartLocation = ParentOrigin - ParentExtent;
 		const FVector ComponentLocation = LandscapeComponent->GetComponentLocation() - StartLocation;
@@ -430,6 +411,42 @@ void ARuntimeLandscape::InitializeFromLandscape()
 	{
 		AddLandscapeLayer(Layer);
 	}
+}
+
+#if WITH_EDITORONLY_DATA
+void ARuntimeLandscape::InitializeFromLandscape()
+{
+	if (!ParentLandscape)
+	{
+		return;
+	}
+
+	if (!LandscapeMaterial)
+	{
+		LandscapeMaterial = ParentLandscape->LandscapeMaterial;
+	}
+
+	HeightScale = ParentLandscape->GetActorScale().Z / FMath::Pow(2.0f, HeightValueBits);
+	ParentHeight = ParentLandscape->GetActorLocation().Z;
+
+	const FIntRect Rect = ParentLandscape->GetBoundingRect();
+	MeshResolution.X = Rect.Max.X - Rect.Min.X;
+	MeshResolution.Y = Rect.Max.Y - Rect.Min.Y;
+	FVector ParentOrigin;
+	FVector ParentExtent;
+	ParentLandscape->GetActorBounds(false, ParentOrigin, ParentExtent);
+	LandscapeSize = FVector2D(ParentExtent * FVector(2.0f));
+	const int32 ComponentSizeQuads = ParentLandscape->ComponentSizeQuads;
+	QuadSideLength = ParentExtent.X * 2 / MeshResolution.X;
+	ComponentSize = ComponentSizeQuads * QuadSideLength;
+	AreaPerSquare = FMath::Square(QuadSideLength);
+	ComponentAmount = FVector2D(MeshResolution.X / ComponentSizeQuads, MeshResolution.Y / ComponentSizeQuads);
+	ComponentResolution = MeshResolution / ComponentAmount;
+
+	VertexAmountPerComponent.X = MeshResolution.X / ComponentAmount.X + 1;
+	VertexAmountPerComponent.Y = MeshResolution.Y / ComponentAmount.Y + 1;
+
+	Rebuild();
 }
 
 void ARuntimeLandscape::PreInitializeComponents()

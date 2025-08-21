@@ -303,6 +303,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void InitializeFromLandscape();
 
+	void Rebuild();
 	virtual void PreInitializeComponents() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 

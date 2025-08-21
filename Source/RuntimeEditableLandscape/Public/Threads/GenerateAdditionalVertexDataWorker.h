@@ -27,7 +27,7 @@ private:
 	TObjectPtr<URuntimeLandscapeRebuildManager> RebuildManager;
 
 	void GenerateGrassDataForVertex(const int32 VertexIndex, int32 X);
-	bool TryGenerateGrassTransformsAtVertex(const FGrassTypeSettings* SelectedGrass, const int32 VertexIndex,
+	void GenerateGrassTransformsAtVertex(const FGrassTypeSettings* SelectedGrass, const int32 VertexIndex,
 	                                        float Weight) const;
 	void GetRandomGrassRotation(const FGrassVariety& Variety, FRotator& OutRotation) const;
 	void GetRandomGrassLocation(const FVector& VertexRelativeLocation, FVector& OutGrassLocation) const;

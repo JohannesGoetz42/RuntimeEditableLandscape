@@ -159,12 +159,15 @@ void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuf
 
 	GrassMeshes.Empty();
 
-	for (const FLandscapeGrassVertexData& GrassData : RebuildBuffer.GrassData)
+	for (const FLandscapeAdditionalData& AdditionalData : RebuildBuffer.AdditionalData)
 	{
-		if (GrassData.InstanceTransformsRelative.IsEmpty() == false)
+		for (const auto& GrassData : AdditionalData.GrassData)
 		{
-			UHierarchicalInstancedStaticMeshComponent* GrassMesh = FindOrAddGrassMesh(GrassData.GrassVariety);
-			GrassMesh->AddInstances(GrassData.InstanceTransformsRelative, false);
+			if (GrassData.Value.InstanceTransformsRelative.IsEmpty() == false)
+			{
+				UHierarchicalInstancedStaticMeshComponent* GrassMesh = FindOrAddGrassMesh(GrassData.Value.GrassVariety);
+				GrassMesh->AddInstances(GrassData.Value.InstanceTransformsRelative, false);
+			}
 		}
 	}
 
@@ -243,7 +246,10 @@ void URuntimeLandscapeComponent::DestroyComponent(bool bPromoteChildren)
 {
 	for (UHierarchicalInstancedStaticMeshComponent* GrassMesh : GrassMeshes)
 	{
-		GrassMesh->DestroyComponent();
+		if (GrassMesh)
+		{
+			GrassMesh->DestroyComponent();
+		}
 	}
 
 	Super::DestroyComponent(bPromoteChildren);
