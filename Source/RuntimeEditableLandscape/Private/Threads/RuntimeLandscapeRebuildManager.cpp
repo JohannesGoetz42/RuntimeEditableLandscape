@@ -3,7 +3,6 @@
 
 #include "Threads/RuntimeLandscapeRebuildManager.h"
 
-#include "KismetProceduralMeshLibrary.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
 #include "Threads/GenerateAdditionalVertexDataWorker.h"
@@ -69,8 +68,20 @@ void URuntimeLandscapeRebuildManager::InitializeBuffer()
 		DataBuffer.GrassData.Add(FLandscapeGrassVertexData());
 	}
 
-	DataBuffer.Triangles.Empty(
-		Landscape->GetComponentResolution().X * Landscape->GetComponentResolution().Y * 6);
+	DataBuffer.Triangles = GenerateTriangleArray(nullptr);
+}
+
+TArray<int32> URuntimeLandscapeRebuildManager::GenerateTriangleArray(const TSet<int32>* HoleIndices) const
+{
+	int32 EntryCount = Landscape->GetComponentResolution().X * Landscape->GetComponentResolution().Y * 6;
+
+	if (HoleIndices)
+	{
+		EntryCount -= HoleIndices->Num() * 6;
+	}
+
+	TArray<int32> Result;
+	Result.Reserve(EntryCount);
 
 	// initialize triangle array, since the generation algorithm is always the same, this will always be the same for each component
 	for (int32 Y = 0; Y < Landscape->GetComponentResolution().Y; ++Y)
@@ -81,17 +92,25 @@ void URuntimeLandscapeRebuildManager::InitializeBuffer()
 			const int32 T2 = T1 + Landscape->GetComponentResolution().X + 1;
 			const int32 T3 = T1 + 1;
 
+			if (HoleIndices && (HoleIndices->Contains(T1) || HoleIndices->Contains(T2) || HoleIndices->Contains(T3)
+				|| HoleIndices->Contains(T2 + 1)))
+			{
+				continue;
+			}
+
 			// add upper-left triangle
-			DataBuffer.Triangles.Add(T1);
-			DataBuffer.Triangles.Add(T2);
-			DataBuffer.Triangles.Add(T3);
+			Result.Add(T1);
+			Result.Add(T2);
+			Result.Add(T3);
 
 			// add lower-right triangle
-			DataBuffer.Triangles.Add(T3);
-			DataBuffer.Triangles.Add(T2);
-			DataBuffer.Triangles.Add(T2 + 1);
+			Result.Add(T3);
+			Result.Add(T2);
+			Result.Add(T2 + 1);
 		}
 	}
+
+	return Result;
 }
 
 void URuntimeLandscapeRebuildManager::StartRebuild()

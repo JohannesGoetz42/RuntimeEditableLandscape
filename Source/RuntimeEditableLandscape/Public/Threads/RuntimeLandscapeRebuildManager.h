@@ -96,6 +96,8 @@ public:
 	{
 		--ActiveRunners;
 	}
+	
+	TArray<int32> GenerateTriangleArray(const TSet<int32>* HoleIndices) const;
 
 private:
 	UPROPERTY(VisibleAnywhere)
@@ -129,7 +131,7 @@ private:
 	void InitializeGenerationCache();
 	void InitializeRunners();
 	void InitializeBuffer();
-
+	
 	/** 1st step: Rebuild vertex data on a single thread, since this is relatively fast */
 	void StartRebuild();
 	/** 2nd step: Rebuild additional data on multiple threads */

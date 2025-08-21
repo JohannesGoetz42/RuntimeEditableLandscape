@@ -217,8 +217,17 @@ void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuf
 	TArray<FColor> VertexColors;
 	VertexColors.Init(FColor::White, RebuildBuffer.VerticesRelative.Num());
 
-	CreateMeshSection(0, RebuildBuffer.VerticesRelative, RebuildBuffer.Triangles, RebuildBuffer.Normals,
-	                  RebuildBuffer.UV0Coords,
+	TArray<int32> Triangles;
+	if (VerticesInHole.IsEmpty())
+	{
+		Triangles = RebuildBuffer.Triangles;
+	}
+	else
+	{
+		Triangles = ParentLandscape->GetRebuildManager()->GenerateTriangleArray(&VerticesInHole);
+	}
+
+	CreateMeshSection(0, RebuildBuffer.VerticesRelative, Triangles, RebuildBuffer.Normals, RebuildBuffer.UV0Coords,
 	                  RebuildBuffer.UV1Coords, RebuildBuffer.UV0Coords, RebuildBuffer.UV0Coords, VertexColors,
 	                  RebuildBuffer.Tangents, ParentLandscape->bUpdateCollision);
 
