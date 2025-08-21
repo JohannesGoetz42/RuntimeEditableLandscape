@@ -180,34 +180,37 @@ TMap<const ULandscapeGroundTypeData*, float> ARuntimeLandscape::GetGroundTypeLay
 
 	for (const FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
 	{
-		int32 PixelIndex = LayerSet.GetPixelIndexForCoordinates(VertexCoordinates);
-		if (ensure(LayerSet.VertexLayerWeights.IsValidIndex(PixelIndex)))
+		if (ensure(LayerSet.RenderTarget))
 		{
-			const FColor& ColorAtPixel = LayerSet.VertexLayerWeights[PixelIndex];
-			int32 LayerIndex = 0;
-			for (const ULandscapeGroundTypeData* Layer : LayerSet.GroundTypes)
+			int32 PixelIndex = LayerSet.GetPixelIndexForCoordinates(VertexCoordinates);
+			if (ensure(LayerSet.VertexLayerWeights.IsValidIndex(PixelIndex)))
 			{
-				uint8 Value = 0;
-				switch (LayerIndex)
+				const FColor& ColorAtPixel = LayerSet.VertexLayerWeights[PixelIndex];
+				int32 LayerIndex = 0;
+				for (const ULandscapeGroundTypeData* Layer : LayerSet.GroundTypes)
 				{
-				case 0:
-					Value = ColorAtPixel.R;
-					break;
-				case 1:
-					Value = ColorAtPixel.G;
-					break;
-				case 2:
-					Value = ColorAtPixel.B;
-					break;
-				case 3:
-					Value = ColorAtPixel.A;
-					break;
-				default:
-					checkNoEntry();
+					uint8 Value = 0;
+					switch (LayerIndex)
+					{
+					case 0:
+						Value = ColorAtPixel.R;
+						break;
+					case 1:
+						Value = ColorAtPixel.G;
+						break;
+					case 2:
+						Value = ColorAtPixel.B;
+						break;
+					case 3:
+						Value = ColorAtPixel.A;
+						break;
+					default:
+						checkNoEntry();
+					}
+					float LayerWeight = Value / 255.0f;
+					Result.Add(Layer, LayerWeight);
+					++LayerIndex;
 				}
-				float LayerWeight = Value / 255.0f;
-				Result.Add(Layer, LayerWeight);
-				++LayerIndex;
 			}
 		}
 	}

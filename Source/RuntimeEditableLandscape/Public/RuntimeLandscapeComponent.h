@@ -65,8 +65,8 @@ protected:
 	/** All vertices that are inside at least one hole */
 	TSet<int32> VerticesInHole = TSet<int32>();
 	UPROPERTY()
-	TSet<TObjectPtr<const ULandscapeLayerComponent>> AffectingLayers = TSet<TObjectPtr<const
-		ULandscapeLayerComponent>>();
+	TSet<TObjectPtr<const ULandscapeLayerComponent>> AffectingLayers =
+		TSet<TObjectPtr<const ULandscapeLayerComponent>>();
 	UPROPERTY()
 	TObjectPtr<ARuntimeLandscape> ParentLandscape;
 	UPROPERTY()
