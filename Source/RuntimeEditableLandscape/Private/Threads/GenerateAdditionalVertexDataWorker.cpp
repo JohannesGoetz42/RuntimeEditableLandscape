@@ -67,8 +67,8 @@ void FGenerateAdditionalVertexDataWorker::GenerateGrassDataForVertex(const int32
 }
 
 void FGenerateAdditionalVertexDataWorker::GenerateGrassTransformsAtVertex(const FGrassTypeSettings* SelectedGrass,
-                                                                             const int32 VertexIndex,
-                                                                             float Weight) const
+                                                                          const int32 VertexIndex,
+                                                                          float Weight) const
 {
 	if (!SelectedGrass || !SelectedGrass->GrassType)
 	{
@@ -116,13 +116,14 @@ void FGenerateAdditionalVertexDataWorker::GenerateGrassTransformsAtVertex(const 
 			FVector GrassLocationRelative;
 			GetRandomGrassLocation(VertexRelativeLocation, GrassLocationRelative);
 
-			FRotator Rotation = SurfaceAlignmentRotation;
-			// GetRandomGrassRotation(Variety, Rotation);
-
+			FRotator Rotation;
+			GetRandomGrassRotation(Variety, Rotation);
+			
 			FVector Scale;
 			GetRandomGrassScale(Variety, Scale);
 
 			FTransform InstanceTransformRelative(Rotation, GrassLocationRelative, Scale);
+			InstanceTransformRelative.SetRotation(SurfaceAlignmentRotation.Quaternion() * Rotation.Quaternion());
 			GrassData.InstanceTransformsRelative.Add(InstanceTransformRelative);
 			--RemainingInstanceCount;
 		}
