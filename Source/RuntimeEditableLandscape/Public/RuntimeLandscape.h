@@ -119,6 +119,8 @@ public:
 	 * NOTE: Requires 'Navigation Mesh->Runtime->Runtime Generation->Dynamic' in the project settings
 	 */
 	uint8 bUpdateNavigation : 1 = 1;
+	UPROPERTY(EditAnywhere, meta = (MustImplement = "RuntimeLandscapeSubcomponent"))
+	TArray<TSubclassOf<UActorComponent>> SubComponentTypes;
 
 	FOnRuntimeLandscapeInitialized OnLandscapeInitialized;
 
@@ -211,7 +213,7 @@ public:
 	bool IsInitialized() const { return ParentLandscape == nullptr; }
 
 protected:
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<URuntimeLandscapeRebuildManager> RebuildManager;
 	UPROPERTY(EditAnywhere)
 	/** The base for scaling landscape height (8 bit?) */

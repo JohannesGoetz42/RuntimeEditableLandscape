@@ -231,12 +231,29 @@ void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuf
 	RemoveFoliageAffectedByLayer();
 	UpdateNavigation();
 
+	for (TSubclassOf<UActorComponent> SubComponentType : ParentLandscape->SubComponentTypes)
+	{
+		UActorComponent* AddedComponent = NewObject<UActorComponent>(ParentLandscape, SubComponentType);
+		if (IRuntimeLandscapeSubcomponent* SubComponent = Cast<IRuntimeLandscapeSubcomponent>(AddedComponent);
+			ensure(SubComponent))
+		{
+			AddedComponent->RegisterComponent();
+			SubComponent->SetRuntimeLandscapeComponent(this);
+		}
+	}
+
 	UE_LOG(RuntimeEditableLandscape, Display, TEXT("	Finished rebuilding Landscape component %s %i..."),
 	       *GetOwner()->GetName(), Index);
 }
 
 void URuntimeLandscapeComponent::DestroyComponent(bool bPromoteChildren)
 {
+	const TArray<TObjectPtr<USceneComponent>>& Children = GetAttachChildren();
+	for (int32 i = Children.Num() - 1; i >= 0; --i)
+	{
+		Children[i]->DestroyComponent();
+	}
+
 	for (UHierarchicalInstancedStaticMeshComponent* GrassMesh : GrassMeshes)
 	{
 		if (GrassMesh)

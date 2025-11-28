@@ -8,6 +8,7 @@
 #include "LandscapeLayerComponent.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
+#include "RuntimeLandscapeSubcomponent.h"
 #include "Chaos/HeightField.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/Canvas.h"
