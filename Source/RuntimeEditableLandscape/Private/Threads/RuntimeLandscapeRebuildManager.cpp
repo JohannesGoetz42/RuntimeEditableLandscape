@@ -160,9 +160,27 @@ void URuntimeLandscapeRebuildManager::StartGenerateAdditionalData()
 	}
 }
 
+void URuntimeLandscapeRebuildManager::RebuildNextInQueue()
+{
+	if (RebuildQueue.IsEmpty())
+	{
+		CurrentComponent = nullptr;
+		SetComponentTickEnabled(false);
+
+		UE_LOG(RuntimeEditableLandscape, Display, TEXT("Finished rebuilding landscape %s"), *Landscape->GetName());
+	}
+	else
+	{
+		CurrentComponent = RebuildQueue.Pop();
+		StartRebuild();
+	}
+}
+
 void URuntimeLandscapeRebuildManager::TickComponent(float DeltaTime, enum ELevelTick TickType,
                                                     FActorComponentTickFunction* ThisTickFunction)
 {
+	OnRebuildProgress.Broadcast(this);
+	
 	if (ActiveRunners < 1)
 	{
 		switch (DataBuffer.RebuildState)

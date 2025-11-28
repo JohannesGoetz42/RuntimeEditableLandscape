@@ -81,7 +81,10 @@ struct FGenerationDataCache
 	float UVIncrement;
 };
 
-UCLASS(Hidden)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLandscapeRebuildProgressDelegate, const URuntimeLandscapeRebuildManager*,
+                                            RebuildManager);
+
+UCLASS()
 /**
  * Manages threads for rebuilding the landscape
  */
@@ -94,6 +97,10 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeRebuildManager : public UAct
 
 public:
 	URuntimeLandscapeRebuildManager();
+
+	UPROPERTY(BlueprintAssignable)
+	FLandscapeRebuildProgressDelegate OnRebuildProgress;
+
 	void QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild);
 	FORCEINLINE FQueuedThreadPool* GetThreadPool() const { return ThreadPool; }
 
@@ -109,6 +116,10 @@ public:
 
 	TArray<int32> GenerateTriangleArray(const TSet<int32>* HoleIndices) const;
 
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TArray<URuntimeLandscapeComponent*> RebuildQueue;
+	
 private:
 	UPROPERTY(VisibleAnywhere)
 	URuntimeLandscapeComponent* CurrentComponent = nullptr;
@@ -118,8 +129,6 @@ private:
 	FGenerationDataCache GenerationDataCache;
 	UPROPERTY(VisibleAnywhere)
 	FRuntimeLandscapeRebuildBuffer DataBuffer;
-	UPROPERTY(VisibleAnywhere)
-	TArray<URuntimeLandscapeComponent*> RebuildQueue;
 
 	FQueuedThreadPool* ThreadPool;
 	FGenerateVerticesWorker* VertexRunner;
@@ -148,25 +157,14 @@ private:
 	/** 2nd step: Rebuild additional data on multiple threads */
 	void StartGenerateAdditionalData();
 
-	void RebuildNextInQueue()
-	{
-		if (RebuildQueue.IsEmpty())
-		{
-			CurrentComponent = nullptr;
-			SetComponentTickEnabled(false);
-		}
-		else
-		{
-			CurrentComponent = RebuildQueue.Pop();
-			StartRebuild();
-		}
-	}
+	void RebuildNextInQueue();
 
 	void CancelRebuild()
 	{
 		CurrentComponent = nullptr;
 		ActiveRunners = 0;
 		SetComponentTickEnabled(false);
+		OnRebuildProgress.Broadcast(this);
 	}
 
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType,
