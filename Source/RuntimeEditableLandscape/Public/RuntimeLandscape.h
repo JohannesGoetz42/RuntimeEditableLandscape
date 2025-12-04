@@ -176,7 +176,7 @@ public:
 	}
 
 	/**
-	 * Get the ids for the sections contained in the specified area
+	 * Get the ids for the sections contained in the specified area.
 	 * Sections are numbered like this (i.e. ComponentAmount = 4x4):
 	 * 0	1	2	3	4
 	 * 5	6	7	8	9
@@ -288,6 +288,17 @@ protected:
 	 */
 	static void UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLayerSet& LayerSet);
 
+	/**
+	 * Intitialize the subcomponents of every landscape component
+	 */
+	void InitializeSubcomponents();
+
+	void HandleEditorLoaded()
+	{
+		BakeLandscapeLayers();
+		InitializeSubcomponents();
+	}
+	
 	virtual void PostLoad() override;
 	virtual void BeginPlay() override;
 	void Rebuild();

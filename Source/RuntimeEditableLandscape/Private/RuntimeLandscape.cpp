@@ -8,7 +8,6 @@
 #include "LandscapeLayerComponent.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscapeComponent.h"
-#include "RuntimeLandscapeSubcomponent.h"
 #include "Chaos/HeightField.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/Canvas.h"
@@ -158,7 +157,7 @@ void ARuntimeLandscape::PostLoad()
 	if (ParentLandscape)
 	{
 		FTimerHandle Handle;
-		GetWorld()->GetTimerManager().SetTimer(Handle, this, &ARuntimeLandscape::BakeLandscapeLayers, 1.0f, false);
+		GetWorld()->GetTimerManager().SetTimer(Handle, this, &ARuntimeLandscape::HandleEditorLoaded, 1.0f, false);
 	}
 }
 
@@ -344,15 +343,22 @@ void ARuntimeLandscape::UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLaye
 	}
 }
 
+void ARuntimeLandscape::InitializeSubcomponents()
+{
+	for (URuntimeLandscapeComponent* LandscapeComponent : LandscapeComponents)
+	{
+		LandscapeComponent->InitializeSubcomponents();
+	}
+}
+
 void ARuntimeLandscape::BakeLandscapeLayers()
 {
 	if (ParentLandscape)
 	{
-		FBox2D Box2D = FBox2D();
+		constexpr FBox2D Box2D = FBox2D();
 
 		for (FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
 		{
-			const TArray<FName>& LayerNames = LayerSet.GetLayerNames();
 			if (LayerSet.RenderTarget)
 			{
 				LayerSet.RenderTarget->SizeX = MeshResolution.X + 1;
