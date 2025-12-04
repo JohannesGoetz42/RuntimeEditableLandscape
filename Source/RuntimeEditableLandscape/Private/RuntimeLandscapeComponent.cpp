@@ -8,6 +8,7 @@
 #include "NavigationSystem.h"
 #include "RuntimeEditableLandscape.h"
 #include "RuntimeLandscape.h"
+#include "RuntimeLandscapeSubcomponent.h"
 #include "LayerTypes/LandscapeHoleLayerData.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
 #include "Runtime/Foliage/Public/InstancedFoliageActor.h"
@@ -139,6 +140,49 @@ void URuntimeLandscapeComponent::RemoveFoliageAffectedByLayer() const
 	}
 }
 
+void URuntimeLandscapeComponent::InitializeSubcomponents()
+{
+	TArray<USceneComponent*> OldChildComponents;
+	GetChildrenComponents(false, OldChildComponents);
+
+	OldChildComponents = OldChildComponents.FilterByPredicate([](const USceneComponent* Current)
+	{
+		return Current->Implements<URuntimeLandscapeSubcomponent>();
+	});
+
+	for (TSubclassOf<UActorComponent> SubComponentType : ParentLandscape->SubComponentTypes)
+	{
+		int32 i = OldChildComponents.IndexOfByPredicate(
+			[SubComponentType](const USceneComponent* Current)
+			{
+				return Current->GetClass() == SubComponentType;
+			});
+
+		if (i != INDEX_NONE)
+		{
+			Cast<IRuntimeLandscapeSubcomponent>(OldChildComponents[i])->SetRuntimeLandscapeComponent(this);
+			OldChildComponents.RemoveAt(i);
+		}
+		// add a new component
+		else
+		{
+			UActorComponent* AddedComponent = NewObject<UActorComponent>(ParentLandscape, SubComponentType);
+			if (IRuntimeLandscapeSubcomponent* SubComponent = Cast<IRuntimeLandscapeSubcomponent>(AddedComponent);
+				ensure(SubComponent))
+			{
+				AddedComponent->RegisterComponent();
+				SubComponent->SetRuntimeLandscapeComponent(this);
+			}
+		}
+	}
+
+	// Remove components that are no longer required
+	for (int32 i = OldChildComponents.Num() - 1; i >= 0; --i)
+	{
+		OldChildComponents[i]->DestroyComponent();
+	}
+}
+
 void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuffer& RebuildBuffer)
 {
 	// TODO: Reuse stuff instead of recreating everything
@@ -230,17 +274,7 @@ void URuntimeLandscapeComponent::FinishRebuild(const FRuntimeLandscapeRebuildBuf
 
 	RemoveFoliageAffectedByLayer();
 	UpdateNavigation();
-
-	for (TSubclassOf<UActorComponent> SubComponentType : ParentLandscape->SubComponentTypes)
-	{
-		UActorComponent* AddedComponent = NewObject<UActorComponent>(ParentLandscape, SubComponentType);
-		if (IRuntimeLandscapeSubcomponent* SubComponent = Cast<IRuntimeLandscapeSubcomponent>(AddedComponent);
-			ensure(SubComponent))
-		{
-			AddedComponent->RegisterComponent();
-			SubComponent->SetRuntimeLandscapeComponent(this);
-		}
-	}
+	InitializeSubcomponents();
 
 	UE_LOG(RuntimeEditableLandscape, Display, TEXT("	Finished rebuilding Landscape component %s %i..."),
 	       *GetOwner()->GetName(), Index);

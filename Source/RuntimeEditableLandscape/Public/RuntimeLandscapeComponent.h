@@ -57,6 +57,25 @@ public:
 
 	FVector2D GetRelativeVertexLocation(int32 VertexIndex) const;
 	virtual void DestroyComponent(bool bPromoteChildren = false) override;
+	const TArray<UHierarchicalInstancedStaticMeshComponent*>& GetGrassMeshes() const { return GrassMeshes; }
+
+	template <typename T>
+	T* FindSubcomponent() const
+	{
+		TArray<USceneComponent*> SubComponents;
+		GetChildrenComponents(false, SubComponents);
+
+		// find landscape interaction comp
+		for (USceneComponent* SubComponent : SubComponents)
+		{
+			if (T* Result = Cast<T>(SubComponent))
+			{
+				return Result;
+			}
+		}
+
+		return nullptr;
+	}
 
 protected:
 	UPROPERTY()
@@ -81,6 +100,7 @@ protected:
 	void ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors);
 	void UpdateNavigation();
 	void RemoveFoliageAffectedByLayer() const;
+	void InitializeSubcomponents();
 
 	/** Applies data to the landscape after all threads are finished */
 	void FinishRebuild(const FRuntimeLandscapeRebuildBuffer& RebuildBuffer);
