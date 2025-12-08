@@ -5,8 +5,14 @@
 #include "CoreMinimal.h"
 #include "LandscapeGroundTypeData.h"
 #include "GameFramework/Actor.h"
+
+#if WITH_EDITORONLY_DATA
+#include "UObject/ObjectSaveContext.h"
+#endif
+
 #include "RuntimeLandscape.generated.h"
 
+class ULandscapeLayerInfoObject;
 class URuntimeLandscapeRebuildManager;
 class UTextureRenderTarget;
 enum ELayerShape : uint8;
@@ -28,6 +34,40 @@ struct FGroundTypeBrushData
 };
 
 USTRUCT(Blueprintable)
+struct FGroundTypeMapping
+{
+	GENERATED_BODY()
+
+	friend class ARuntimeLandscape;
+
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<const ULandscapeGroundTypeData> GroundTypeData;
+
+	FLinearColor GetRenderTargetColorChannel() const { return RenderTargetColorChannel; }
+
+	uint8 GetColorValue(const FColor& ColorAtPixel) const
+	{
+		return FMath::RoundToInt(
+			ColorAtPixel.R * RenderTargetColorChannel.R
+			+ ColorAtPixel.G * RenderTargetColorChannel.G
+			+ ColorAtPixel.B * RenderTargetColorChannel.B
+			+ ColorAtPixel.A * RenderTargetColorChannel.A);
+	}
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<ULandscapeLayerInfoObject> LayerInfoObject;
+#endif
+
+private:
+	UPROPERTY(VisibleAnywhere)
+	/** 
+	 * The color channel for this ground tye
+	 */
+	FLinearColor RenderTargetColorChannel = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+};
+
+USTRUCT(Blueprintable)
 /**
  * Caches data for up to 4 landscape ground layers
  */
@@ -38,14 +78,14 @@ struct FRuntimeLandscapeGroundTypeLayerSet
 	FRuntimeLandscapeGroundTypeLayerSet()
 	{
 		// only allow 4 entries so they can be mapped to the RGBA channels
-		GroundTypes = {nullptr, nullptr, nullptr, nullptr};
+		GroundTypeMappings.Reserve(4);
 	}
 
 	UPROPERTY(EditAnywhere)
 	/** Render target that has a pixel for every vertex on the landscape */
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
 	UPROPERTY(EditAnywhere, meta = (EditFixedSize))
-	TArray<const ULandscapeGroundTypeData*> GroundTypes;
+	TArray<FGroundTypeMapping> GroundTypeMappings;
 	UPROPERTY()
 	/**
 	 * The weights for the layers
@@ -54,30 +94,6 @@ struct FRuntimeLandscapeGroundTypeLayerSet
 	TArray<FColor> VertexLayerWeights;
 
 	TArray<FName> GetLayerNames() const;
-
-	FLinearColor GetColorChannelForLayer(const ULandscapeGroundTypeData* GroundType) const
-	{
-		int32 LayerIndex = GroundTypes.IndexOfByKey(GroundType);
-		if (ensure(LayerIndex != INDEX_NONE))
-		{
-			switch (LayerIndex)
-			{
-			case 0:
-				return FLinearColor(1, 0, 0, 0);
-			case 1:
-				return FLinearColor(0, 1, 0, 0);
-			case 2:
-				return FLinearColor(0, 0, 1, 0);
-			case 3:
-				return FLinearColor(0, 0, 0, 1);
-			default:
-				checkNoEntry();
-			}
-		}
-
-		return FLinearColor::Black;
-	}
-
 	int32 GetPixelIndexForCoordinates(FIntVector2 VertexCoords) const;
 };
 
@@ -166,7 +182,12 @@ public:
 	{
 		for (const FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
 		{
-			if (LayerSet.GroundTypes.Contains(GroundType))
+			bool bIsMatchingMapping = LayerSet.GroundTypeMappings.ContainsByPredicate(
+				[GroundType](const FGroundTypeMapping& Current)
+				{
+					return Current.GroundTypeData == GroundType;
+				});
+			if (bIsMatchingMapping)
 			{
 				return &LayerSet;
 			}
@@ -298,7 +319,7 @@ protected:
 		BakeLandscapeLayers();
 		InitializeSubcomponents();
 	}
-	
+
 	virtual void PostLoad() override;
 	virtual void BeginPlay() override;
 	void Rebuild();
@@ -325,7 +346,14 @@ public:
 	TObjectPtr<UMaterial> DebugMaterial;
 
 	virtual void PreInitializeComponents() override;
+	void SetUpLayerColorChannelMappings();
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override
+	{
+		SetUpLayerColorChannelMappings();
+		Super::PreSave(SaveContext);
+	}
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override
 	{

@@ -20,11 +20,11 @@
 TArray<FName> FRuntimeLandscapeGroundTypeLayerSet::GetLayerNames() const
 {
 	TArray<FName> Result;
-	for (const ULandscapeGroundTypeData* GroundLayer : GroundTypes)
+	for (const FGroundTypeMapping& GroundLayer : GroundTypeMappings)
 	{
-		if (GroundLayer)
+		if (GroundLayer.GroundTypeData)
 		{
-			Result.Add(GroundLayer->LandscapeLayerName);
+			Result.Add(GroundLayer.GroundTypeData->LandscapeLayerName);
 		}
 	}
 
@@ -78,7 +78,13 @@ void ARuntimeLandscape::DrawGroundType(const ULandscapeGroundTypeData* GroundTyp
 	FRuntimeLandscapeGroundTypeLayerSet* LayerSet = nullptr;
 	for (FRuntimeLandscapeGroundTypeLayerSet& CurrentLayerSet : GroundLayerSets)
 	{
-		if (CurrentLayerSet.GroundTypes.Contains(GroundType))
+		bool bIsMatchingMapping = CurrentLayerSet.GroundTypeMappings.ContainsByPredicate(
+			[GroundType](const FGroundTypeMapping& Current)
+			{
+				return Current.GroundTypeData == GroundType;
+			});
+
+		if (bIsMatchingMapping)
 		{
 			LayerSet = &CurrentLayerSet;
 			break;
@@ -110,7 +116,17 @@ void ARuntimeLandscape::DrawGroundType(const ULandscapeGroundTypeData* GroundTyp
 		const FVector2D BrushSize = FVector2D(BoxSize.X, BoxSize.Y * AspectRatio) * ScaleFactor;
 
 		const float Yaw = WorldTransform.GetRotation().Rotator().Yaw;
-		FLinearColor ColorChannel = LayerSet->GetColorChannelForLayer(GroundType);
+
+		FLinearColor ColorChannel = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		for (const FGroundTypeMapping& Mapping : LayerSet->GroundTypeMappings)
+		{
+			if (Mapping.GroundTypeData == GroundType)
+			{
+				ColorChannel = Mapping.GetRenderTargetColorChannel();
+				break;
+			}
+		}
+
 		MaskBrushMaterial->SetVectorParameterValue(MATERIAL_PARAMETER_GROUND_TYPE_LAYER_COLOR, ColorChannel);
 
 		Canvas->K2_DrawMaterial(MaskBrushMaterial, ScreenPosition, BrushSize, FVector2D::Zero(),
@@ -141,7 +157,7 @@ void ARuntimeLandscape::BakeLandscapeLayersAndDestroyLandscape()
 			BakeLandscapeLayers();
 		}
 
-		ParentLandscape->Destroy();
+		// ParentLandscape->Destroy();
 		ParentLandscape = nullptr;
 	}
 
@@ -202,28 +218,12 @@ TMap<const ULandscapeGroundTypeData*, float> ARuntimeLandscape::GetGroundTypeLay
 			{
 				const FColor& ColorAtPixel = LayerSet.VertexLayerWeights[PixelIndex];
 				int32 LayerIndex = 0;
-				for (const ULandscapeGroundTypeData* Layer : LayerSet.GroundTypes)
+				for (const FGroundTypeMapping& Layer : LayerSet.GroundTypeMappings)
 				{
-					uint8 Value = 0;
-					switch (LayerIndex)
-					{
-					case 0:
-						Value = ColorAtPixel.R;
-						break;
-					case 1:
-						Value = ColorAtPixel.G;
-						break;
-					case 2:
-						Value = ColorAtPixel.B;
-						break;
-					case 3:
-						Value = ColorAtPixel.A;
-						break;
-					default:
-						checkNoEntry();
-					}
+					uint8 Value = Layer.GetColorValue(ColorAtPixel);
+
 					float LayerWeight = Value / 255.0f;
-					Result.Add(Layer, LayerWeight);
+					Result.Add(Layer.GroundTypeData, LayerWeight);
 					++LayerIndex;
 				}
 			}
@@ -324,7 +324,6 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 
 void ARuntimeLandscape::UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLayerSet& LayerSet)
 {
-	FImage MaskImage;
 	if (ensure(LayerSet.RenderTarget))
 	{
 		if (FTextureResource* Resource = LayerSet.RenderTarget->GetResource())
@@ -335,6 +334,7 @@ void ARuntimeLandscape::UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLaye
 			                     TEXT("Render target hat non matching resolution. Save the asset %s and try again."),
 			                     *LayerSet.RenderTarget->GetName()))
 			{
+				FImage MaskImage;
 				FImageUtils::GetRenderTargetImage(LayerSet.RenderTarget, MaskImage);
 				TArrayView64<FColor> MaskValues = MaskImage.AsBGRA8();
 				LayerSet.VertexLayerWeights = MaskValues;
@@ -347,7 +347,10 @@ void ARuntimeLandscape::InitializeSubcomponents()
 {
 	for (URuntimeLandscapeComponent* LandscapeComponent : LandscapeComponents)
 	{
-		LandscapeComponent->InitializeSubcomponents();
+		if (ensure(IsValid(LandscapeComponent)))
+		{
+			LandscapeComponent->InitializeSubcomponents();
+		}
 	}
 }
 
@@ -355,6 +358,10 @@ void ARuntimeLandscape::BakeLandscapeLayers()
 {
 	if (ParentLandscape)
 	{
+#if WITH_EDITORONLY_DATA
+		SetUpLayerColorChannelMappings();
+#endif
+
 		constexpr FBox2D Box2D = FBox2D();
 
 		for (FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
@@ -475,6 +482,8 @@ void ARuntimeLandscape::InitializeFromLandscape()
 		return;
 	}
 
+	SetActorLocation(ParentLandscape->GetActorLocation());
+
 	if (!LandscapeMaterial)
 	{
 		LandscapeMaterial = ParentLandscape->LandscapeMaterial;
@@ -523,6 +532,44 @@ void ARuntimeLandscape::PreInitializeComponents()
 	}
 }
 
+void ARuntimeLandscape::SetUpLayerColorChannelMappings()
+{
+	// map layers to render target color channels
+	// TODO: implement multiple edit layers
+	// int32 EditLayerCount = ParentLandscape->GetEditLayersConst().Num();
+	TArray<ULandscapeLayerInfoObject*> LayerInfos;
+	ParentLandscape->GetUsedPaintLayers(0, LayerInfos);
+
+	for (FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
+	{
+		for (FGroundTypeMapping& Mapping : LayerSet.GroundTypeMappings)
+		{
+			if (Mapping.LayerInfoObject)
+			{
+				switch (LayerInfos.IndexOfByKey(Mapping.LayerInfoObject))
+				{
+				case 0:
+					Mapping.RenderTargetColorChannel = FLinearColor(1.0f, 0.0f, 0.0f, 0.0f);
+					break;
+				case 1:
+					Mapping.RenderTargetColorChannel = FLinearColor(0.0f, 1.0f, 0.0f, 0.0f);
+					break;
+				case 2:
+					Mapping.RenderTargetColorChannel = FLinearColor(0.0f, 0.0f, 1.0f, 0.0f);
+					break;
+				case 3:
+					Mapping.RenderTargetColorChannel = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
+					break;
+				default:
+					ensureMsgf(
+						false, TEXT("Cound not find layer info at the parent Landscape for layerinfo object '%s'"),
+						*Mapping.LayerInfoObject->GetName());
+				}
+			}
+		}
+	}
+}
+
 void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -536,6 +583,8 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 		InitializeFromLandscape();
 	}
 
+	LandscapeComponents.Remove(nullptr);
+
 	if (PropertyChangedEvent.MemberProperty->GetName() == FName("bGenerateOverlapEvents"))
 	{
 		for (URuntimeLandscapeComponent* Component : LandscapeComponents)
@@ -543,6 +592,7 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 			Component->SetGenerateOverlapEvents(bGenerateOverlapEvents);
 		}
 	}
+
 	if (PropertyChangedEvent.MemberProperty->GetName() == FName("LandscapeMaterial"))
 	{
 		for (URuntimeLandscapeComponent* Component : LandscapeComponents)
@@ -561,6 +611,8 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 			Component->SetGenerateOverlapEvents(bGenerateOverlapEvents);
 		}
 	}
+
+	SetUpLayerColorChannelMappings();
 }
 
 #endif

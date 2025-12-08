@@ -65,6 +65,9 @@ UHierarchicalInstancedStaticMeshComponent* URuntimeLandscapeComponent::FindOrAdd
 	InstancedStaticMesh->SetCullDistances(Variety.GetStartCullDistance(), Variety.GetEndCullDistance());
 	InstancedStaticMesh->SetCastShadow(Variety.bCastDynamicShadow);
 	InstancedStaticMesh->SetCastContactShadow(Variety.bCastContactShadow);
+	InstancedStaticMesh->SetRenderCustomDepth(true);
+	InstancedStaticMesh->SetCustomDepthStencilValue(42);
+	InstancedStaticMesh->SetCollisionEnabled(ECollisionEnabled::Type::NoCollision);
 
 	GrassMeshes.Add(InstancedStaticMesh);
 	return InstancedStaticMesh;
