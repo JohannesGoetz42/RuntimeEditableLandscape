@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Landscape.h"
 #include "LandscapeGroundTypeData.h"
 #include "GameFramework/Actor.h"
 
@@ -318,6 +319,13 @@ protected:
 	{
 		BakeLandscapeLayers();
 		InitializeSubcomponents();
+		
+#if WITH_EDITOR
+		if (ParentLandscape)
+		{
+			ParentLandscape->SetIsTemporarilyHiddenInEditor(true);
+		}
+#endif
 	}
 
 	virtual void PostLoad() override;
