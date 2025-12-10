@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "LayerTypes/LandscapeLayerDataBase.h"
 #include "LandscapeLayerComponent.generated.h"
 
 
@@ -33,6 +34,7 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeLayerComponent : public UActorCompo
 	GENERATED_BODY()
 
 	friend class ARuntimeLandscape;
+	friend class URuntimeLandscapeComponent;
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Smoothing", meta = (ClampMin = 0.0f))
@@ -52,7 +54,7 @@ public:
 	FORCEINLINE float GetRadius() const { return Radius; }
 	FORCEINLINE const FVector& GetExtent() const { return Extent; }
 	FORCEINLINE const FBox2D& GetBoundingBox() const { return BoundingBox; }
-	FORCEINLINE const TSet<const ULandscapeLayerDataBase*>& GetLayerData() const { return Layers; }
+	FORCEINLINE const TArray<ULandscapeLayerDataBase*>& GetLayerData() const { return Layers; }
 
 	void ApplyToLandscape();
 	bool IsAffectedByLayer(FVector2D Location) const;
@@ -64,7 +66,7 @@ protected:
 	UPROPERTY(EditAnywhere)
 	TSet<TObjectPtr<ARuntimeLandscape>> AffectedLandscapes;
 	UPROPERTY(EditAnywhere, Instanced)
-	TSet<const ULandscapeLayerDataBase*> Layers;
+	TArray<ULandscapeLayerDataBase*> Layers;
 	UPROPERTY(EditAnywhere, meta = (EditCondition = "BoundsComponent == nullptr"))
 	/**
 	 * The shape of the layer
@@ -121,6 +123,8 @@ protected:
 		Super::OnRegister();
 		UpdateShape();
 	}
+
+	void InitializeLayerMemories();
 
 #if WITH_EDITORONLY_DATA
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;

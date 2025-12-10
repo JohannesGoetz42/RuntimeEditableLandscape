@@ -8,6 +8,7 @@
 
 class ARuntimeLandscape;
 class URuntimeLandscapeComponent;
+
 /**
  * Base class for landscape layers
  */
@@ -21,14 +22,23 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeLayerDataBase : public UDataAsset
 
 protected:
 	/** Override this for effects that apply their effect to the whole landscape */
-	virtual void ApplyToLandscape(ARuntimeLandscape* Landscape, const ULandscapeLayerComponent* LandscapeLayerComponent) const
+	virtual void ApplyToLandscape(ARuntimeLandscape* Landscape,
+	                              const ULandscapeLayerComponent* LandscapeLayerComponent) const
 	{
 	}
 
 	/** Override this for effects that apply their effect based on vertices */
-	virtual void ApplyToVertices(URuntimeLandscapeComponent* LandscapeComponent,
-	                             const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
-	                             float& OutHeightValue, FColor& OutVertexColor, float SmoothingFactor) const
+	virtual void ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
+	                           const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
+	                           float& OutHeightValue, FColor& OutVertexColor, float SmoothingFactor) const
+	{
+	}
+
+	/**
+	 * Optional: Initialize a memory for this layer. Can be used to calculate stuff upfront instead of calculating for every vertex
+	 */
+	virtual void InitializeLayerMemory(
+		const ULandscapeLayerComponent* OwningLayer)
 	{
 	}
 };

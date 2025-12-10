@@ -18,9 +18,10 @@ protected:
 	UPROPERTY(EditAnywhere)
 	FColor VertexColor;
 
-	virtual void ApplyToVertices(URuntimeLandscapeComponent* LandscapeComponent, const ULandscapeLayerComponent* LayerComponent,
-	                   int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor,
-	                   float SmoothingFactor) const override
+	virtual void ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
+	                           const ULandscapeLayerComponent* LayerComponent,
+	                           int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor,
+	                           float SmoothingFactor) const override
 	{
 		OutVertexColor = FLinearColor::LerpUsingHSV(VertexColor, OutVertexColor, SmoothingFactor).ToFColor(false);
 	}

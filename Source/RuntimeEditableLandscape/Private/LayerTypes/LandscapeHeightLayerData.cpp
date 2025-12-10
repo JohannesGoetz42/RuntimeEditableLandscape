@@ -5,9 +5,20 @@
 
 #include "LandscapeLayerComponent.h"
 
-void ULandscapeHeightLayerData::ApplyToVertices(URuntimeLandscapeComponent* LandscapeComponent, const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
-                                      float& OutHeightValue, FColor& VertexColor, float SmoothingFactor) const
+void ULandscapeHeightLayerData::ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
+                                              const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
+                                              float& OutHeightValue, FColor& OutVertexColor,
+                                              float SmoothingFactor) const
 {
-	OutHeightValue = FMath::Lerp(HeightValue + LayerComponent->GetOwner()->GetActorLocation().Z, OutHeightValue,
-								 SmoothingFactor);
+	ULandscapeLayerMemoryBase* MyMemory = Cast<ULandscapeLayerMemoryBase>(Memory.Get());
+	if (ensure(MyMemory))
+	{
+		OutHeightValue = FMath::Lerp(HeightValue + LayerComponent->GetOwner()->GetActorLocation().Z, OutHeightValue,
+		                             SmoothingFactor);
+	}
+}
+
+void ULandscapeHeightLayerData::InitializeLayerMemory(const ULandscapeLayerComponent* OwningLayer)
+{
+	ensure(false);
 }

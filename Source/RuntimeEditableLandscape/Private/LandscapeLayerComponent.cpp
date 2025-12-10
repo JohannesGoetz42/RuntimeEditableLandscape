@@ -59,8 +59,7 @@ bool ULandscapeLayerComponent::IsAffectedByLayer(FVector2D Location) const
 }
 
 void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent,
-                                              float& OutHeightValue,
-                                              FColor& OutVertexColorValue) const
+                                              float& OutHeightValue, FColor& OutVertexColorValue) const
 {
 	const FVector2D VertexLocation = LandscapeComponent->GetRelativeVertexLocation(VertexIndex) + FVector2D(
 		LandscapeComponent->GetComponentLocation());
@@ -72,12 +71,12 @@ void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandsca
 	float SmoothingFactor;
 	if (TryCalculateSmoothingFactor(SmoothingFactor, VertexLocation))
 	{
-		for (const ULandscapeLayerDataBase* Layer : Layers)
+		for (int32 i = 0; i < Layers.Num(); ++i)
 		{
-			if (Layer)
+			if (Layers[i])
 			{
-				Layer->ApplyToVertices(LandscapeComponent, this, VertexIndex, OutHeightValue, OutVertexColorValue,
-				                       SmoothingFactor);
+				Layers[i]->ApplyToVertex(LandscapeComponent, this, VertexIndex, OutHeightValue, OutVertexColorValue,
+				                         SmoothingFactor);
 			}
 		}
 	}
@@ -100,6 +99,14 @@ void ULandscapeLayerComponent::SetBoundsComponent(UPrimitiveComponent* NewBounds
 	BoundsComponent = NewBoundsComponent;
 	Extent = BoundsComponent->Bounds.BoxExtent;
 	UpdateShape();
+}
+
+void ULandscapeLayerComponent::InitializeLayerMemories()
+{
+	for (ULandscapeLayerDataBase* LayerData : Layers)
+	{
+		LayerData->InitializeLayerMemory(this);
+	}
 }
 
 void ULandscapeLayerComponent::UpdateShape()
