@@ -54,8 +54,10 @@ public:
 	}
 
 	FORCEINLINE int32 GetComponentIndex() const { return Index; }
-
+	FORCEINLINE const TArray<float>& GetInitialHeightValues() const { return InitialHeightValues; }
 	FVector2D GetRelativeVertexLocation(int32 VertexIndex) const;
+	int32 GetClosestVertexToWorldLocation(const FVector2D& WorldLocation) const;
+
 	virtual void DestroyComponent(bool bPromoteChildren = false) override;
 	const TArray<UHierarchicalInstancedStaticMeshComponent*>& GetGrassMeshes() const { return GrassMeshes; }
 
@@ -76,6 +78,13 @@ public:
 
 		return nullptr;
 	}
+
+	// TArray<int32> GetVerticesOnBoxEdge(const FBox2D& Box, float BoxAngle) const;
+	/** 
+	 * Get the indices for the closest vertices to the corners of the box
+	 * @return The indices ordered in clockwise rotation starting at top left corner of the box
+	 */
+	TArray<int32> GetCornerVerticesOfBox(const FBox2D& Box, float BoxAngle) const;
 
 protected:
 	UPROPERTY()

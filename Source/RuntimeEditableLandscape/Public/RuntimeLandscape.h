@@ -23,6 +23,17 @@ class ALandscape;
 
 class UProceduralMeshComponent;
 
+USTRUCT()
+struct FLandscapeVertex
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 VertexIndex = INDEX_NONE;
+	UPROPERTY()
+	TObjectPtr<const URuntimeLandscapeComponent> ContainingComponent = nullptr;
+};
+
 USTRUCT(Blueprintable)
 struct FGroundTypeBrushData
 {
@@ -141,17 +152,6 @@ public:
 
 	FOnRuntimeLandscapeInitialized OnLandscapeInitialized;
 
-	/**
-	 * Adds a new layer to the landscape
-	 * @param LayerToAdd The added landscape layer
-	 */
-	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd);
-	void DrawGroundType(const ULandscapeGroundTypeData* GroundType, ELayerShape Shape, const FTransform& WorldTransform,
-	                    const FVector& BrushExtent);
-	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer);
-	TMap<const ULandscapeGroundTypeData*, float> GetGroundTypeLayerWeightsAtVertexCoordinates(
-		int32 SectionIndex, int32 X, int32 Y) const;
-
 	/** Get the amount of vertices in a single component */
 	FORCEINLINE int32 GetTotalVertexAmountPerComponent() const
 	{
@@ -171,12 +171,24 @@ public:
 	FORCEINLINE float GetQuadSideLength() const { return QuadSideLength; }
 	FORCEINLINE float GetParentHeight() const { return ParentHeight; }
 	FORCEINLINE float GetAreaPerSquare() const { return AreaPerSquare; }
+	FORCEINLINE float GetComponentSize() const { return ComponentSize; }
 	FORCEINLINE TArray<FHeightBasedLandscapeData> GetHeightBasedData() const { return HeightBasedData; }
 	FORCEINLINE const AInstancedFoliageActor* GetFoliageActor() const { return FoliageActor; }
 	FORCEINLINE const TMap<TEnumAsByte<ELayerShape>, FGroundTypeBrushData>& GetGroundTypeBrushes() const
 	{
 		return GroundTypeBrushes;
 	}
+
+	/**
+	 * Adds a new layer to the landscape
+	 * @param LayerToAdd The added landscape layer
+	 */
+	void AddLandscapeLayer(const ULandscapeLayerComponent* LayerToAdd);
+	void DrawGroundType(const ULandscapeGroundTypeData* GroundType, ELayerShape Shape, const FTransform& WorldTransform,
+	                    const FVector& BrushExtent);
+	void RemoveLandscapeLayer(const ULandscapeLayerComponent* Layer);
+	TMap<const ULandscapeGroundTypeData*, float> GetGroundTypeLayerWeightsAtVertexCoordinates(
+		int32 SectionIndex, int32 X, int32 Y) const;
 
 	const FRuntimeLandscapeGroundTypeLayerSet* TryGetLayerSetForGroundType(
 		const ULandscapeGroundTypeData* GroundType) const
@@ -233,6 +245,11 @@ public:
 	FBox2D GetComponentBounds(int32 SectionIndex) const;
 	/** Returns true if the landscape is fully initialized -> the parent Landscape is destroyed */
 	bool IsInitialized() const { return ParentLandscape == nullptr; }
+	/** 
+	 * Get the closest vertices to the corners of the box
+	 * @return The landscape vertices ordered in clockwise rotation starting at top left corner of the box
+	 */
+	TArray<FLandscapeVertex> GetCornerVerticesOfBox(const FBox2D& Box, float BoxAngle) const;
 
 protected:
 	UPROPERTY(BlueprintReadOnly)
@@ -319,7 +336,7 @@ protected:
 	{
 		BakeLandscapeLayers();
 		InitializeSubcomponents();
-		
+
 #if WITH_EDITOR
 		if (ParentLandscape)
 		{

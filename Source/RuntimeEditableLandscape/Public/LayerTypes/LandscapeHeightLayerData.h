@@ -17,6 +17,19 @@ class RUNTIMEEDITABLELANDSCAPE_API ULandscapeHeightLayerData : public ULandscape
 protected:
 	UPROPERTY(EditAnywhere)
 	float HeightValue;
-	
-	virtual void ApplyToVertices(URuntimeLandscapeComponent* LandscapeComponent, const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor, float SmoothingFactor) const override;
+	UPROPERTY(EditAnywhere)
+	/** 
+	 * the maximum angle of the flattened plane 
+	 * the required angle is derived from the owner transform 
+	 */
+	float MaxAngle = 0.0f;
+
+	float InclinationTopBottom = 0.0f;
+	float InclinationLeftRight = 0.0f;
+
+	virtual void ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
+	                           const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex, float& OutHeightValue,
+	                           FColor& OutVertexColor, float SmoothingFactor) const override;
+	virtual void InitializeLayerMemory(const ULandscapeLayerComponent* OwningLayer,
+	                                   const URuntimeLandscapeComponent* LandscapeComponent) override;
 };

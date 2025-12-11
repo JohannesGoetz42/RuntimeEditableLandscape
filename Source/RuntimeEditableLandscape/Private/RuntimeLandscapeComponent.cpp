@@ -44,6 +44,32 @@ FVector2D URuntimeLandscapeComponent::GetRelativeVertexLocation(int32 VertexInde
 	                 Coordinates.Y * ParentLandscape->GetQuadSideLength());
 }
 
+int32 URuntimeLandscapeComponent::GetClosestVertexToWorldLocation(const FVector2D& WorldLocation) const
+{
+	FVector2D RelativeSearchLocation = WorldLocation;
+	RelativeSearchLocation.X -= GetComponentLocation().X;
+	RelativeSearchLocation.Y -= GetComponentLocation().Y;
+
+	// if location is outside of the component, return INDEX_NONE 
+	if (RelativeSearchLocation.X < 0.0f || RelativeSearchLocation.Y < 0.0f
+		|| RelativeSearchLocation.X > ParentLandscape->GetComponentSize()
+		|| RelativeSearchLocation.Y > ParentLandscape->GetComponentSize())
+	{
+		return INDEX_NONE;
+	}
+
+	FVector2D LocationCoordinates;
+	LocationCoordinates.X = RelativeSearchLocation.X / ParentLandscape->GetComponentSize();
+	LocationCoordinates.Y = RelativeSearchLocation.Y / ParentLandscape->GetComponentSize();
+
+	int32 ColumnIndex = FMath::RoundToInt(
+		(ParentLandscape->GetComponentSize() * LocationCoordinates.X) / ParentLandscape->GetQuadSideLength());
+	int32 RowIndex = FMath::RoundToInt(
+		(ParentLandscape->GetComponentSize() * LocationCoordinates.Y) / ParentLandscape->GetQuadSideLength());
+
+	return RowIndex * ParentLandscape->GetVertexAmountPerComponent().X + ColumnIndex;
+}
+
 UHierarchicalInstancedStaticMeshComponent* URuntimeLandscapeComponent::FindOrAddGrassMesh(const FGrassVariety& Variety)
 {
 	UHierarchicalInstancedStaticMeshComponent** Mesh = GrassMeshes.FindByPredicate(
@@ -81,15 +107,14 @@ void URuntimeLandscapeComponent::Rebuild()
 void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightValues, TArray<FColor>& OutVertexColors)
 {
 	check(OutHeightValues.Num() == InitialHeightValues.Num());
-
 	VerticesInHole.Empty();
 	OutVertexColors.Init(FColor::White, InitialHeightValues.Num());
 	for (const ULandscapeLayerComponent* Layer : AffectingLayers)
 	{
+		Layer->InitializeLayerMemories(this);
 		for (int32 i = 0; i < InitialHeightValues.Num(); i++)
 		{
-			Layer->ApplyLayerData(i, this, OutHeightValues[i],
-			                      OutVertexColors[i]);
+			Layer->ApplyLayerData(i, this, OutHeightValues[i], OutVertexColors[i]);
 		}
 	}
 }
@@ -300,4 +325,80 @@ void URuntimeLandscapeComponent::DestroyComponent(bool bPromoteChildren)
 	}
 
 	Super::DestroyComponent(bPromoteChildren);
+}
+
+// TArray<int32> URuntimeLandscapeComponent::GetVerticesOnBoxEdge(const FBox2D& Box, float BoxAngle) const
+// {
+// 	// TODO: implement this in non-naive way
+// 	int32 CurrentVertexIndex = 0;
+// 	FVector2D CurrentVertexWorldLocation = FVector2D(GetComponentLocation().X, GetComponentLocation().Y);
+// 	TArray<int32> Result;
+//
+// 	DrawDebugSphere(
+// 		GetWorld(), GetComponentLocation(), 200.0f, 8, FColor::Green, false, 30.0f);
+// 	DrawDebugSphere(
+// 		GetWorld(), FVector(Box.GetCenter().X, Box.GetCenter().Y, GetComponentLocation().Z + 200.0f), 200.0f, 8,
+// 		FColor::Cyan, false, 30.0f);
+// 	// DrawDebugBox(GetWorld(), Box.GetCenter(), Box.)
+//
+// 	bool bWasVertexInside = false;
+// 	for (int32 Y = 0; Y < ParentLandscape->GetVertexAmountPerComponent().Y; ++Y)
+// 	{
+// 		CurrentVertexWorldLocation.X = GetComponentLocation().X;
+//
+// 		for (int32 X = 0; X < ParentLandscape->GetVertexAmountPerComponent().X; ++X)
+// 		{
+// 			FColor TESTCOLOR = FColor::Blue;
+// 			if (Box.IsInside(CurrentVertexWorldLocation))
+// 			{
+// 				if (!bWasVertexInside)
+// 				{
+// 					Result.Add(CurrentVertexIndex);
+// 					TESTCOLOR = FColor::Magenta;
+// 				}
+//
+// 				bWasVertexInside = true;
+// 			}
+// 			else
+// 			{
+// 				if (bWasVertexInside)
+// 				{
+// 					Result.Add(CurrentVertexIndex);
+// 					TESTCOLOR = FColor::Magenta;
+// 				}
+//
+// 				bWasVertexInside = false;
+// 			}
+//
+// 			DrawDebugSphere(
+// 				GetWorld(), FVector(CurrentVertexWorldLocation.X, CurrentVertexWorldLocation.Y,
+// 				                    InitialHeightValues[CurrentVertexIndex]), 200.0f, 8, TESTCOLOR, false, 30.0f);
+//
+// 			++CurrentVertexIndex;
+// 			CurrentVertexWorldLocation.X += ParentLandscape->GetQuadSideLength();
+// 		}
+//
+// 		CurrentVertexWorldLocation.Y += ParentLandscape->GetQuadSideLength();
+// 	}
+//
+// 	return Result;
+// }
+
+TArray<int32> URuntimeLandscapeComponent::GetCornerVerticesOfBox(const FBox2D& Box, float BoxAngle) const
+{
+	FVector2D DiagonalLowerUpper = Box.GetExtent().GetRotated(BoxAngle);
+	FVector2D DiagonalUpperLower = FVector2D(Box.GetExtent().X, -Box.GetExtent().Y).GetRotated(BoxAngle);
+
+	FVector2D UpperLeftCornerLocation = Box.GetCenter() - DiagonalUpperLower;
+	FVector2D LowLeftCornerLocation = Box.GetCenter() - DiagonalLowerUpper;
+	FVector2D UpperRightCornerLocation = Box.GetCenter() + DiagonalLowerUpper;
+	FVector2D LowerRightCornerLocation = Box.GetCenter() + DiagonalUpperLower;
+
+	return TArray<int32>
+	{
+		GetClosestVertexToWorldLocation(UpperLeftCornerLocation),
+		GetClosestVertexToWorldLocation(UpperRightCornerLocation),
+		GetClosestVertexToWorldLocation(LowerRightCornerLocation),
+		GetClosestVertexToWorldLocation(LowLeftCornerLocation)
+	};
 }

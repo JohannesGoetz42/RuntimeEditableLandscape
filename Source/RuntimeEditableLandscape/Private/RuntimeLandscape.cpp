@@ -322,6 +322,29 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 		FVector2D((SectionCoordinates.X + 1) * SectionSize.X, (SectionCoordinates.Y + 1) * SectionSize.Y));
 }
 
+TArray<FLandscapeVertex> ARuntimeLandscape::GetCornerVerticesOfBox(const FBox2D& Box, float BoxAngle) const
+{
+	TArray<FLandscapeVertex> Result;
+	Result.AddUninitialized(4);
+
+	for (const URuntimeLandscapeComponent* LandscapeComponent : GetComponentsInArea(Box))
+	{
+		int32 i = 0;
+		for (int32 VertexIndex : LandscapeComponent->GetCornerVerticesOfBox(Box, BoxAngle))
+		{
+			if (VertexIndex != INDEX_NONE)
+			{
+				Result[i].VertexIndex = VertexIndex;
+				Result[i].ContainingComponent = LandscapeComponent;
+			}
+
+			++i;
+		}
+	}
+
+	return Result;
+}
+
 void ARuntimeLandscape::UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLayerSet& LayerSet)
 {
 	if (ensure(LayerSet.RenderTarget))

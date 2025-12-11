@@ -101,11 +101,17 @@ void ULandscapeLayerComponent::SetBoundsComponent(UPrimitiveComponent* NewBounds
 	UpdateShape();
 }
 
-void ULandscapeLayerComponent::InitializeLayerMemories()
+FVector2D ULandscapeLayerComponent::GetBoundsCoordinatesForVertex(int32 VertexIndex) const
+{
+	checkNoEntry();
+	return FVector2D(-1.0f);
+}
+
+void ULandscapeLayerComponent::InitializeLayerMemories(const URuntimeLandscapeComponent* LandscapeComponent) const
 {
 	for (ULandscapeLayerDataBase* LayerData : Layers)
 	{
-		LayerData->InitializeLayerMemory(this);
+		LayerData->InitializeLayerMemory(this, LandscapeComponent);
 	}
 }
 

@@ -9,8 +9,6 @@
 
 
 class ULandscapeLayerDataBase;
-class URuntimeLandscapeComponent;
-class ARuntimeLandscape;
 
 UENUM()
 enum ESmoothingDirection : uint8
@@ -55,12 +53,14 @@ public:
 	FORCEINLINE const FVector& GetExtent() const { return Extent; }
 	FORCEINLINE const FBox2D& GetBoundingBox() const { return BoundingBox; }
 	FORCEINLINE const TArray<ULandscapeLayerDataBase*>& GetLayerData() const { return Layers; }
+	FORCEINLINE const UPrimitiveComponent* GetBoundsComponent() const { return BoundsComponent; }
 
 	void ApplyToLandscape();
 	bool IsAffectedByLayer(FVector2D Location) const;
 	void ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent, float& OutHeightValue,
 	                    FColor& OutVertexColorValue) const;
 	void SetBoundsComponent(UPrimitiveComponent* NewBoundsComponent);
+	FVector2D GetBoundsCoordinatesForVertex(int32 VertexIndex) const;
 
 protected:
 	UPROPERTY(EditAnywhere)
@@ -124,7 +124,7 @@ protected:
 		UpdateShape();
 	}
 
-	void InitializeLayerMemories();
+	void InitializeLayerMemories(const URuntimeLandscapeComponent* LandscapeComponent) const;
 
 #if WITH_EDITORONLY_DATA
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;

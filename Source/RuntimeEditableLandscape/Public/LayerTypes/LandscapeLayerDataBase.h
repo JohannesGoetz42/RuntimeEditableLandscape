@@ -38,7 +38,7 @@ protected:
 	 * Optional: Initialize a memory for this layer. Can be used to calculate stuff upfront instead of calculating for every vertex
 	 */
 	virtual void InitializeLayerMemory(
-		const ULandscapeLayerComponent* OwningLayer)
+		const ULandscapeLayerComponent* OwningLayer, const URuntimeLandscapeComponent* LandscapeComponent)
 	{
 	}
 };
