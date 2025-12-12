@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "LandscapeGrassType.h"
-#include "LandscapeLayerActor.h"
 #include "ProceduralMeshComponent.h"
 #include "RuntimeLandscapeComponent.generated.h"
 

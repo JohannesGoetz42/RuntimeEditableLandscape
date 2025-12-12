@@ -5,6 +5,7 @@
 
 #include "RuntimeLandscape.h"
 #include "RuntimeLandscapeComponent.h"
+#include "Components/SphereComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "LayerTypes/LandscapeLayerDataBase.h"
@@ -61,22 +62,23 @@ bool ULandscapeLayerComponent::IsAffectedByLayer(FVector2D Location) const
 void ULandscapeLayerComponent::ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent,
                                               float& OutHeightValue, FColor& OutVertexColorValue) const
 {
-	const FVector2D VertexLocation = LandscapeComponent->GetRelativeVertexLocation(VertexIndex) + FVector2D(
+	const FVector2D VertexWorldLocation = LandscapeComponent->GetRelativeVertexLocation(VertexIndex) + FVector2D(
 		LandscapeComponent->GetComponentLocation());
-	if (!IsAffectedByLayer(VertexLocation))
+	if (!IsAffectedByLayer(VertexWorldLocation))
 	{
 		return;
 	}
 
-	float SmoothingFactor;
-	if (TryCalculateSmoothingFactor(SmoothingFactor, VertexLocation))
+	FLandscapeLayerVertexInfo VertexInfo;
+	VertexInfo.VertexIndex = VertexIndex;
+
+	if (TryCalculateVertexInfo(VertexInfo, VertexWorldLocation))
 	{
 		for (int32 i = 0; i < Layers.Num(); ++i)
 		{
 			if (Layers[i])
 			{
-				Layers[i]->ApplyToVertex(LandscapeComponent, this, VertexIndex, OutHeightValue, OutVertexColorValue,
-				                         SmoothingFactor);
+				Layers[i]->ApplyToVertex(LandscapeComponent, this, OutHeightValue, OutVertexColorValue, VertexInfo);
 			}
 		}
 	}
@@ -99,12 +101,6 @@ void ULandscapeLayerComponent::SetBoundsComponent(UPrimitiveComponent* NewBounds
 	BoundsComponent = NewBoundsComponent;
 	Extent = BoundsComponent->Bounds.BoxExtent;
 	UpdateShape();
-}
-
-FVector2D ULandscapeLayerComponent::GetBoundsCoordinatesForVertex(int32 VertexIndex) const
-{
-	checkNoEntry();
-	return FVector2D(-1.0f);
 }
 
 void ULandscapeLayerComponent::InitializeLayerMemories(const URuntimeLandscapeComponent* LandscapeComponent) const
@@ -170,7 +166,8 @@ void ULandscapeLayerComponent::UpdateShape()
 	InnerBox.Max = FVector2D(Origin + Extent) - InnerSmoothingOffset;
 }
 
-bool ULandscapeLayerComponent::TryCalculateSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location) const
+bool ULandscapeLayerComponent::TryCalculateSmoothingFactor(FLandscapeLayerVertexInfo& OutVertexInfo,
+                                                           const FVector2D& WorldLocation) const
 {
 	const FVector2D Origin = FVector2D(BoundsComponent
 		                                   ? BoundsComponent->GetComponentLocation()
@@ -178,10 +175,10 @@ bool ULandscapeLayerComponent::TryCalculateSmoothingFactor(float& OutSmoothingFa
 	switch (Shape)
 	{
 	case ELayerShape::HS_Box:
-		return TryCalculateBoxSmoothingFactor(OutSmoothingFactor, Location, Origin);
+		return TryCalculateBoxSmoothingFactor(OutVertexInfo, WorldLocation, Origin);
 
 	case ELayerShape::HS_Round:
-		return TryCalculateSphereSmoothingFactor(OutSmoothingFactor, Location, Origin);
+		return TryCalculateSphereSmoothingFactor(OutVertexInfo, WorldLocation, Origin);
 	default:
 		checkNoEntry();
 	}
@@ -189,12 +186,13 @@ bool ULandscapeLayerComponent::TryCalculateSmoothingFactor(float& OutSmoothingFa
 	return false;
 }
 
-bool ULandscapeLayerComponent::TryCalculateBoxSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location,
+bool ULandscapeLayerComponent::TryCalculateBoxSmoothingFactor(FLandscapeLayerVertexInfo& OutVertexInfo,
+                                                              const FVector2D& WorldLocation,
                                                               FVector2D Origin) const
 {
 	const FVector RotatedLocation = UKismetMathLibrary::InverseTransformLocation(
 		BoundsComponent ? BoundsComponent->GetComponentTransform() : GetOwner()->GetActorTransform(),
-		FVector(Location, 0.0f));
+		FVector(WorldLocation, 0.0f));
 
 	const float DistanceSqr = InnerBox.ComputeSquaredDistanceToPoint(FVector2D(RotatedLocation) + Origin);
 	const float SmoothingDistanceSqr = FMath::Square(SmoothingDistance);
@@ -203,15 +201,16 @@ bool ULandscapeLayerComponent::TryCalculateBoxSmoothingFactor(float& OutSmoothin
 		return false;
 	}
 
-	OutSmoothingFactor = DistanceSqr == 0.0f ? 0.0f : DistanceSqr / SmoothingDistanceSqr;
+	OutVertexInfo.SmoothingFactor = DistanceSqr == 0.0f ? 0.0f : DistanceSqr / SmoothingDistanceSqr;
 	return true;
 }
 
-bool ULandscapeLayerComponent::TryCalculateSphereSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location,
+bool ULandscapeLayerComponent::TryCalculateSphereSmoothingFactor(FLandscapeLayerVertexInfo& OutVertexInfo,
+                                                                 const FVector2D& WorldLocation,
                                                                  FVector2D Origin) const
 {
 	const float OuterRadiusSquared = FMath::Square(Radius + BoundsSmoothingOffset);
-	const float DistanceSqr = (Location - Origin).SizeSquared();
+	const float DistanceSqr = (WorldLocation - Origin).SizeSquared();
 	if (DistanceSqr >= OuterRadiusSquared)
 	{
 		return false;
@@ -220,17 +219,42 @@ bool ULandscapeLayerComponent::TryCalculateSphereSmoothingFactor(float& OutSmoot
 	const float InnerRadiusSqr = FMath::Square(Radius - InnerSmoothingOffset);
 	if (DistanceSqr < InnerRadiusSqr)
 	{
-		OutSmoothingFactor = 0.0f;
+		OutVertexInfo.SmoothingFactor = 0.0f;
 	}
 	else
 	{
 		check(SmoothingDistance > 0.0f);
 		const float Distance = FMath::Abs(FMath::Sqrt(DistanceSqr) - (Radius - InnerSmoothingOffset));
-		OutSmoothingFactor = Distance / SmoothingDistance;
-		check(OutSmoothingFactor >= 0.0f && OutSmoothingFactor <= 1.0f);
+		OutVertexInfo.SmoothingFactor = Distance / SmoothingDistance;
+		check(OutVertexInfo.SmoothingFactor >= 0.0f && OutVertexInfo.SmoothingFactor <= 1.0f);
 	}
 
 	return true;
+}
+
+bool ULandscapeLayerComponent::TryCalculateBoundsDistances(FLandscapeLayerVertexInfo& OutVertexInfo,
+                                                           const FVector2D& WorldLocation) const
+{
+	if (ensureAlways(BoundsComponent))
+	{
+		FVector BoundsExtent = BoundsComponent->GetLocalBounds().BoxExtent;
+		if (ensureAlways(BoundsExtent.X > 0.0f && BoundsExtent.Y > 0.0f))
+		{
+			FVector2D LocationRelativeToBounds = WorldLocation - FVector2D(BoundsComponent->GetComponentLocation().X,
+			                                                               BoundsComponent->GetComponentLocation().Y);
+
+			LocationRelativeToBounds = LocationRelativeToBounds.GetRotated(BoundsComponent->GetComponentRotation().Yaw);
+
+			FVector2D LocationRelativeToTopLeftCorner = LocationRelativeToBounds
+				+ FVector2D(BoundsExtent.X, BoundsExtent.Y);
+
+			OutVertexInfo.BoundsDistanceLeft = LocationRelativeToTopLeftCorner.X / BoundsExtent.X;
+			OutVertexInfo.BoundsDistanceTop = LocationRelativeToTopLeftCorner.Y / BoundsExtent.Y;
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void ULandscapeLayerComponent::HandleBoundsChanged(USceneComponent* SceneComponent,

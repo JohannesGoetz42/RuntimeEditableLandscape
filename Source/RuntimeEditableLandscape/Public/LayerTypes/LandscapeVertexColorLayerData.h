@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LandscapeLayerComponent.h"
 #include "LandscapeLayerDataBase.h"
 #include "LandscapeVertexColorLayerData.generated.h"
 
@@ -20,9 +21,10 @@ protected:
 
 	virtual void ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
 	                           const ULandscapeLayerComponent* LayerComponent,
-	                           int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor,
-	                           float SmoothingFactor) const override
+	                           float& OutHeightValue, FColor& OutVertexColor,
+	                           const FLandscapeLayerVertexInfo& VertexInfo) const override
 	{
-		OutVertexColor = FLinearColor::LerpUsingHSV(VertexColor, OutVertexColor, SmoothingFactor).ToFColor(false);
+		OutVertexColor = FLinearColor::LerpUsingHSV(VertexColor, OutVertexColor, VertexInfo.SmoothingFactor).
+			ToFColor(false);
 	}
 };

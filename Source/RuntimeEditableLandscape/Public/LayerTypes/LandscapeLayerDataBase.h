@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "LandscapeLayerDataBase.generated.h"
 
+struct FLandscapeLayerVertexInfo;
 class ARuntimeLandscape;
 class URuntimeLandscapeComponent;
 
@@ -29,8 +30,8 @@ protected:
 
 	/** Override this for effects that apply their effect based on vertices */
 	virtual void ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
-	                           const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
-	                           float& OutHeightValue, FColor& OutVertexColor, float SmoothingFactor) const
+	                           const ULandscapeLayerComponent* LayerComponent,
+	                           float& OutHeightValue, FColor& OutVertexColor, const FLandscapeLayerVertexInfo& VertexInfo) const
 	{
 	}
 

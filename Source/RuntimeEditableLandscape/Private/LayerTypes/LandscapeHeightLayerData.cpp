@@ -8,14 +8,15 @@
 #include "RuntimeLandscapeComponent.h"
 
 void ULandscapeHeightLayerData::ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
-                                              const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex,
+                                              const ULandscapeLayerComponent* LayerComponent,
                                               float& OutHeightValue, FColor& OutVertexColor,
-                                              float SmoothingFactor) const
+                                              const FLandscapeLayerVertexInfo& VertexInfo) const
 {
-	FVector2D BoundsCoordinates = LayerComponent->GetBoundsCoordinatesForVertex(VertexIndex);
+	float AdjustedHeightValue = HeightValue + LayerComponent->GetOwner()->GetActorLocation().Z
+		+ VertexInfo.BoundsDistanceLeft * HeightDifferenceLeftRight
+		+ VertexInfo.BoundsDistanceTop * HeightDifferenceTopBottom;
 
-	OutHeightValue = FMath::Lerp(HeightValue + LayerComponent->GetOwner()->GetActorLocation().Z, OutHeightValue,
-	                             SmoothingFactor);
+	OutHeightValue = FMath::Lerp(AdjustedHeightValue, OutHeightValue, VertexInfo.SmoothingFactor);
 }
 
 void ULandscapeHeightLayerData::InitializeLayerMemory(const ULandscapeLayerComponent* OwningLayer,
@@ -68,16 +69,6 @@ void ULandscapeHeightLayerData::InitializeLayerMemory(const ULandscapeLayerCompo
 		1.0f, 1.0f, 0.0f);
 	DrawDebugSphere(GetWorld(), BottomLeftLocation3D, 50.0f, 8, FColor::Magenta, false, 20.0f);
 
-	FVector BoundsExtent = OwningLayer->GetBoundsComponent()->GetLocalBounds().BoxExtent;
-
-	if (ensureAlways(BoundsExtent.X > 0.0f && BoundsExtent.Y > 0.0f))
-	{
-		InclinationTopBottom = (AvgHeightBottomEdge - AvgHeightTopEdge) / BoundsExtent.Y;
-		InclinationLeftRight = (AvgHeightLeftEdge - AvgHeightRightEdge) / BoundsExtent.X;
-	}
-	else
-	{
-		InclinationTopBottom = 0.0f;
-		InclinationLeftRight = 0.0f;
-	}
+	HeightDifferenceTopBottom = AvgHeightBottomEdge - AvgHeightTopEdge;
+	HeightDifferenceLeftRight = AvgHeightLeftEdge - AvgHeightRightEdge;
 }

@@ -26,6 +26,17 @@ enum ELayerShape : uint8
 	HS_Round UMETA(DisplayName = "Round")
 };
 
+USTRUCT()
+struct FLandscapeLayerVertexInfo
+{
+	GENERATED_BODY()
+
+	int32 VertexIndex = INDEX_NONE;
+	float SmoothingFactor = 0.0f;
+	float BoundsDistanceTop = 0.0f;
+	float BoundsDistanceLeft = 0.0f;
+};
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class RUNTIMEEDITABLELANDSCAPE_API ULandscapeLayerComponent : public UActorComponent
 {
@@ -60,7 +71,6 @@ public:
 	void ApplyLayerData(int32 VertexIndex, URuntimeLandscapeComponent* LandscapeComponent, float& OutHeightValue,
 	                    FColor& OutVertexColorValue) const;
 	void SetBoundsComponent(UPrimitiveComponent* NewBoundsComponent);
-	FVector2D GetBoundsCoordinatesForVertex(int32 VertexIndex) const;
 
 protected:
 	UPROPERTY(EditAnywhere)
@@ -93,16 +103,24 @@ protected:
 	float BoundsSmoothingOffset = 0.0f;
 	float InnerSmoothingOffset = 0.0f;
 
+	bool TryCalculateVertexInfo(FLandscapeLayerVertexInfo& OutVertexInfo, const FVector2D& WorldLocation) const
+	{
+		return TryCalculateSmoothingFactor(OutVertexInfo, WorldLocation)
+			&& TryCalculateBoundsDistances(OutVertexInfo, WorldLocation);
+	}
+
 	/**
 	 * Try to calculate the smoothing distance
-	 * @param OutSmoothingFactor the resulting smoothing factor
-	 * @param Location the location to calculate the distance to  
+	 * @param OutVertexInfo the vertex info struct
+	 * @param WorldLocation the location to calculate the distance to  
 	 * @return true if the location is affected
 	 */
-	bool TryCalculateSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location) const;
-	bool TryCalculateBoxSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location, FVector2D Origin) const;
-	bool TryCalculateSphereSmoothingFactor(float& OutSmoothingFactor, const FVector2D& Location,
+	bool TryCalculateSmoothingFactor(FLandscapeLayerVertexInfo& OutVertexInfo, const FVector2D& WorldLocation) const;
+	bool TryCalculateBoxSmoothingFactor(FLandscapeLayerVertexInfo& OutVertexInfo, const FVector2D& WorldLocation,
+	                                    FVector2D Origin) const;
+	bool TryCalculateSphereSmoothingFactor(FLandscapeLayerVertexInfo& OutVertexInfo, const FVector2D& WorldLocation,
 	                                       FVector2D Origin) const;
+	bool TryCalculateBoundsDistances(FLandscapeLayerVertexInfo& OutVertexInfo, const FVector2D& WorldLocation) const;
 
 	void HandleBoundsChanged(USceneComponent* SceneComponent, EUpdateTransformFlags UpdateTransformFlags,
 	                         ETeleportType Teleport);

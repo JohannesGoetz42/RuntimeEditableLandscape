@@ -19,6 +19,6 @@ protected:
 	float SmoothingValueThreshold = 15.0f;
 
 	virtual void ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
-	                           const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex, float& OutHeightValue,
-	                           FColor& OutVertexColor, float SmoothingFactor) const override;
+	                           const ULandscapeLayerComponent* LayerComponent, float& OutHeightValue,
+	                           FColor& OutVertexColor, const FLandscapeLayerVertexInfo& VertexInfo) const override;
 };

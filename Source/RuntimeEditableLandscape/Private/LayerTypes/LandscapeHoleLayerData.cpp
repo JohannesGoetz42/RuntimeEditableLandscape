@@ -3,14 +3,16 @@
 
 #include "LayerTypes/LandscapeHoleLayerData.h"
 
+#include "LandscapeLayerComponent.h"
 #include "RuntimeLandscapeComponent.h"
 
 void ULandscapeHoleLayerData::ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
-                                            const ULandscapeLayerComponent* LayerComponent, int32 VertexIndex, float& OutHeightValue, FColor& OutVertexColor,
-                                            float SmoothingFactor) const
+                                            const ULandscapeLayerComponent* LayerComponent, float& OutHeightValue,
+                                            FColor& OutVertexColor,
+                                            const FLandscapeLayerVertexInfo& VertexInfo) const
 {
-	if (SmoothingFactor < SmoothingValueThreshold)
+	if (VertexInfo.SmoothingFactor < SmoothingValueThreshold)
 	{
-		LandscapeComponent->SetHoleFlagForVertex(VertexIndex, true);
+		LandscapeComponent->SetHoleFlagForVertex(VertexInfo.VertexIndex, true);
 	}
 }
