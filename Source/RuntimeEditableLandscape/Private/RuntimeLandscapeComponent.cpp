@@ -50,10 +50,12 @@ int32 URuntimeLandscapeComponent::GetClosestVertexToWorldLocation(const FVector2
 	RelativeSearchLocation.X -= GetComponentLocation().X;
 	RelativeSearchLocation.Y -= GetComponentLocation().Y;
 
+	float QuadSideLengthHalf = ParentLandscape->GetQuadSideLength() * 0.5f;
+
 	// if location is outside the component, return INDEX_NONE 
-	if (RelativeSearchLocation.X < 0.0f || RelativeSearchLocation.Y < 0.0f
-		|| RelativeSearchLocation.X > ParentLandscape->GetComponentSize()
-		|| RelativeSearchLocation.Y > ParentLandscape->GetComponentSize())
+	if (RelativeSearchLocation.X < -QuadSideLengthHalf || RelativeSearchLocation.Y < -QuadSideLengthHalf
+		|| RelativeSearchLocation.X > ParentLandscape->GetComponentSize() + QuadSideLengthHalf
+		|| RelativeSearchLocation.Y > ParentLandscape->GetComponentSize() + QuadSideLengthHalf)
 	{
 		FVector DebugSphereLocation = FVector(WorldLocation, InitialHeightValues[0] + 100.0f);
 		DrawDebugSphere(GetWorld(), DebugSphereLocation, 100.0f, 8, FColor::Red, false, 20.0f);
@@ -69,6 +71,8 @@ int32 URuntimeLandscapeComponent::GetClosestVertexToWorldLocation(const FVector2
 	int32 RowIndex = FMath::RoundToInt(
 		(ParentLandscape->GetComponentSize() * LocationCoordinates.Y) / ParentLandscape->GetQuadSideLength());
 
+	check(ColumnIndex >= 0);
+	check(RowIndex >= 0);
 	return RowIndex * ParentLandscape->GetVertexAmountPerComponent().X + ColumnIndex;
 }
 
