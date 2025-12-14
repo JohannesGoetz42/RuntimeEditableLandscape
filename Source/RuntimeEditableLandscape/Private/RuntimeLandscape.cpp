@@ -445,10 +445,25 @@ void ARuntimeLandscape::InitializeSubcomponents()
 	}
 }
 
+void ARuntimeLandscape::InitializeDynamicMaterial()
+{
+	if (!LandscapeMaterialInstance && LandscapeMaterialParent)
+	{
+		LandscapeMaterialInstance = UKismetMaterialLibrary::CreateDynamicMaterialInstance(this, LandscapeMaterialParent);
+		for (URuntimeLandscapeComponent* LandscapeComponent : LandscapeComponents)
+		{
+			LandscapeComponent->SetMaterial(0, LandscapeMaterialInstance);
+		}
+	}
+}
+
 void ARuntimeLandscape::BakeLandscapeLayers()
 {
 	if (ParentLandscape)
 	{
+		InitializeDynamicMaterial();
+		SetUpRenderTargets();
+
 #if WITH_EDITORONLY_DATA
 		SetUpLayerColorChannelMappings();
 #endif
@@ -533,7 +548,7 @@ void ARuntimeLandscape::Rebuild()
 		URuntimeLandscapeComponent* LandscapeComponent = NewObject<URuntimeLandscapeComponent>(this);
 		LandscapeComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		LandscapeComponent->SetWorldLocation(LandscapeCollision->GetComponentLocation());
-		LandscapeComponent->SetMaterial(0, LandscapeMaterial);
+		LandscapeComponent->SetMaterial(0, LandscapeMaterialInstance);
 		LandscapeComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
 		LandscapeComponent->SetCastShadow(bCastShadow);
 		LandscapeComponent->SetAffectDistanceFieldLighting(bAffectDistanceFieldLighting);
@@ -575,9 +590,9 @@ void ARuntimeLandscape::InitializeFromLandscape()
 
 	SetActorLocation(ParentLandscape->GetActorLocation());
 
-	if (!LandscapeMaterial)
+	if (!LandscapeMaterialParent)
 	{
-		LandscapeMaterial = ParentLandscape->LandscapeMaterial;
+		LandscapeMaterialParent = ParentLandscape->LandscapeMaterial;
 	}
 
 	HeightScale = ParentLandscape->GetActorScale().Z / FMath::Pow(2.0f, HeightValueBits);
@@ -602,6 +617,46 @@ void ARuntimeLandscape::InitializeFromLandscape()
 
 	Rebuild();
 #endif
+}
+
+void ARuntimeLandscape::SetUpRenderTargets()
+{
+	if (!IsValid(LandscapeMaterialInstance))
+	{
+		return;
+	}
+
+	for (int32 i = 0; i < GroundLayerSets.Num(); ++i)
+	{
+		if (!IsValid(GroundLayerSets[i].RenderTarget))
+		{
+			GroundLayerSets[i].RenderTarget = UKismetRenderingLibrary::CreateRenderTarget2D(
+				GetWorld(), MeshResolution.X + 1, MeshResolution.Y + 1,
+				ETextureRenderTargetFormat::RTF_RGBA8,
+				FLinearColor(0.0f, 0.0f, 0.0f, 0.0f));
+
+			TMap<FMaterialParameterInfo, FMaterialParameterMetadata> MaterialParameters;
+			LandscapeMaterialInstance->GetAllParametersOfType(EMaterialParameterType::Texture, MaterialParameters);
+			FName ParameterName = FName(MATERIAL_PARAMETER_GROUND_TYPE_LAYER_MASK, i);
+
+			bool bDoesParameterExist = false;
+			for (const auto& Parameter : MaterialParameters)
+			{
+				if (Parameter.Key.Name.IsEqual(MATERIAL_PARAMETER_GROUND_TYPE_LAYER_MASK))
+				{
+					LandscapeMaterialInstance->SetTextureParameterValue(ParameterName, GroundLayerSets[i].RenderTarget);
+					bDoesParameterExist = true;
+					break;
+				}
+			}
+
+			if (!bDoesParameterExist)
+			{
+				UE_LOG(RuntimeEditableLandscape, Warning, TEXT("The landscape material %s has no parameter named %s"),
+				       *LandscapeMaterialInstance->GetName(), *ParameterName.ToString())
+			}
+		}
+	}
 }
 
 #if WITH_EDITORONLY_DATA
@@ -686,9 +741,16 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 
 	if (PropertyChangedEvent.MemberProperty->GetName() == FName("LandscapeMaterial"))
 	{
+		InitializeDynamicMaterial();
+		UMaterialInterface* Material = LandscapeMaterialInstance;
+		if (bEnableDebug && DebugMaterial)
+		{
+			Material = DebugMaterial;
+		}
+
 		for (URuntimeLandscapeComponent* Component : LandscapeComponents)
 		{
-			Component->SetMaterial(0, bEnableDebug && DebugMaterial ? DebugMaterial : LandscapeMaterial);
+			Component->SetMaterial(0, Material);
 		}
 	}
 

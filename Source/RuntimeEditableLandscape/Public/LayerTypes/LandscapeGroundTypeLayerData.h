@@ -7,6 +7,8 @@
 #include "LandscapeGroundTypeLayerData.generated.h"
 
 #define MATERIAL_PARAMETER_GROUND_TYPE_LAYER_COLOR FName("GroundTypeLayerColor")
+#define MATERIAL_PARAMETER_GROUND_TYPE_LAYER_MASK FName("GroundLayerMask")
+
 
 class ULandscapeGroundTypeData;
 /**

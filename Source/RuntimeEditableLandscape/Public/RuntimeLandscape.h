@@ -252,11 +252,11 @@ public:
 	 * @return The landscape vertices ordered in clockwise rotation starting at top left corner of the box
 	 */
 	TArray<FLandscapeVertex> GetCornerVerticesOfBox(const FBox2D& Box, float BoxAngle) const;
-	
+
 	/**
 	 * Calculate the Normal direction of the landscape for the provided box and angle
 	 * The normal is calculated with the corner vertices
-	 * @param Box The box for which the normal is calulated
+	 * @param Box The box for which the normal is calculated
 	 * @param BoxAngle the angle of the Box
 	 * @return 
 	 */
@@ -315,12 +315,15 @@ protected:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<ALandscape> ParentLandscape;
 	UPROPERTY(EditAnywhere)
-	TObjectPtr<UMaterialInterface> LandscapeMaterial;
+	/** The parent material used to instantiate the dynamic material instance which is then used by the landscape */
+	TObjectPtr<UMaterialInterface> LandscapeMaterialParent;
 	UPROPERTY(EditAnywhere, Category = "Lighting")
 	uint8 bCastShadow : 1 = 1;
 	UPROPERTY(EditAnywhere, Category = "Lighting", meta = (EditCondition = "bCastShadow"))
 	uint8 bAffectDistanceFieldLighting : 1 = 1;
-
+	UPROPERTY()
+	/** The dynamic material instance for the landscape */
+	TObjectPtr<UMaterialInstanceDynamic> LandscapeMaterialInstance;
 	bool bIsRebuilding;
 
 	UFUNCTION(BlueprintCallable)
@@ -339,9 +342,10 @@ protected:
 	static void UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLayerSet& LayerSet);
 
 	/**
-	 * Intitialize the subcomponents of every landscape component
+	 * Initialize the subcomponents of every landscape component
 	 */
 	void InitializeSubcomponents();
+	void InitializeDynamicMaterial();
 
 	void HandleEditorLoaded()
 	{
@@ -381,6 +385,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> DebugMaterial;
 
+	void SetUpRenderTargets();
 	virtual void PreInitializeComponents() override;
 	void SetUpLayerColorChannelMappings();
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
