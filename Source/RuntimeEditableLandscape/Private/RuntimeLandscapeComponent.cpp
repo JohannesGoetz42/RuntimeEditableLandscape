@@ -57,8 +57,6 @@ int32 URuntimeLandscapeComponent::GetClosestVertexToWorldLocation(const FVector2
 		|| RelativeSearchLocation.X > ParentLandscape->GetComponentSize() + QuadSideLengthHalf
 		|| RelativeSearchLocation.Y > ParentLandscape->GetComponentSize() + QuadSideLengthHalf)
 	{
-		FVector DebugSphereLocation = FVector(WorldLocation, InitialHeightValues[0] + 100.0f);
-		DrawDebugSphere(GetWorld(), DebugSphereLocation, 100.0f, 8, FColor::Red, false, 20.0f);
 		return INDEX_NONE;
 	}
 

@@ -32,6 +32,8 @@ struct FLandscapeVertex
 	int32 VertexIndex = INDEX_NONE;
 	UPROPERTY()
 	TObjectPtr<const URuntimeLandscapeComponent> ContainingComponent = nullptr;
+
+	FVector GetWorldLocation() const;
 };
 
 USTRUCT(Blueprintable)
@@ -250,6 +252,15 @@ public:
 	 * @return The landscape vertices ordered in clockwise rotation starting at top left corner of the box
 	 */
 	TArray<FLandscapeVertex> GetCornerVerticesOfBox(const FBox2D& Box, float BoxAngle) const;
+	
+	/**
+	 * Calculate the Normal direction of the landscape for the provided box and angle
+	 * The normal is calculated with the corner vertices
+	 * @param Box The box for which the normal is calulated
+	 * @param BoxAngle the angle of the Box
+	 * @return 
+	 */
+	FVector GetNormalDirectionInBox(const FBox2D& Box, float BoxAngle) const;
 
 protected:
 	UPROPERTY(BlueprintReadOnly)

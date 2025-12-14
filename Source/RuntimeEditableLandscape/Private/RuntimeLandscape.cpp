@@ -17,6 +17,20 @@
 #include "LayerTypes/LandscapeLayerDataBase.h"
 #include "Threads/RuntimeLandscapeRebuildManager.h"
 
+FVector FLandscapeVertex::GetWorldLocation() const
+{
+	if (ContainingComponent && VertexIndex != INDEX_NONE)
+	{
+		FVector2D RelativeVertexLocation = ContainingComponent->GetRelativeVertexLocation(VertexIndex);
+		FVector ComponentLocation = ContainingComponent->GetComponentLocation();
+
+		return FVector(RelativeVertexLocation.X + ComponentLocation.X, RelativeVertexLocation.Y + ComponentLocation.Y,
+		               ContainingComponent->GetInitialHeightValues()[VertexIndex]);
+	}
+
+	return FVector::Zero();
+}
+
 TArray<FName> FRuntimeLandscapeGroundTypeLayerSet::GetLayerNames() const
 {
 	TArray<FName> Result;
@@ -342,6 +356,60 @@ TArray<FLandscapeVertex> ARuntimeLandscape::GetCornerVerticesOfBox(const FBox2D&
 		}
 	}
 
+#if WITH_EDITOR
+	int32 i = 0;
+	for (FLandscapeVertex& LandscapeVertex : Result)
+	{
+		if (LandscapeVertex.VertexIndex < 0 || LandscapeVertex.VertexIndex >= GetTotalVertexAmountPerComponent())
+		{
+			FVector2D DiagonalLowerUpper = Box.GetExtent().GetRotated(BoxAngle);
+			FVector2D DiagonalUpperLower = FVector2D(Box.GetExtent().X, -Box.GetExtent().Y).GetRotated(BoxAngle);
+
+			FVector2D WorldLocation;
+			switch (i)
+			{
+			case 0:
+				WorldLocation = Box.GetCenter() - DiagonalUpperLower;
+				break;
+			case 1:
+				WorldLocation = Box.GetCenter() - DiagonalLowerUpper;
+				break;
+			case 2:
+				WorldLocation = Box.GetCenter() + DiagonalLowerUpper;
+				break;
+			case 3:
+				WorldLocation = Box.GetCenter() + DiagonalUpperLower;
+				break;
+			}
+
+			URuntimeLandscapeComponent* FallbackComp = GetComponentsInArea(Box)[0];
+			FVector DebugSphereLocation = FVector(WorldLocation, FallbackComp->InitialHeightValues[0] + 100.0f);
+			DrawDebugSphere(GetWorld(), DebugSphereLocation, 100.0f, 8, FColor::Red, false, 30.0f);
+			checkNoEntry();
+			LandscapeVertex.VertexIndex = 0;
+			LandscapeVertex.ContainingComponent = FallbackComp;
+		}
+	}
+#endif
+ 
+	return Result;
+}
+
+FVector ARuntimeLandscape::GetNormalDirectionInBox(const FBox2D& Box, float BoxAngle) const
+{
+	TArray<FLandscapeVertex> CornerVertices = GetCornerVerticesOfBox(Box, BoxAngle);
+	// ensure(false); // Implement normal calculation
+	FPlane Plane1 = FPlane(CornerVertices[2].GetWorldLocation(), CornerVertices[1].GetWorldLocation(),
+	                       CornerVertices[0].GetWorldLocation());
+	// FPlane Plane2 = FPlane(CornerVertices[1].GetWorldLocation(), CornerVertices[2].GetWorldLocation(), CornerVertices[3].GetWorldLocation());
+	FVector Result = Plane1.GetNormal();
+	FVector DebugLocation = FVector(Box.GetCenter(), 0.0f);
+	for (int32 i = 0; i < 20.0f; ++i)
+	{
+		DebugLocation.Z = 200.0f * i;
+		DrawDebugLine(GetWorld(), DebugLocation, DebugLocation + Result * 300.0f, FColor::Blue);
+	}
+	
 	return Result;
 }
 
