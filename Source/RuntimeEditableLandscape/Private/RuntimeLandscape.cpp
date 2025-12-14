@@ -389,9 +389,11 @@ TArray<FLandscapeVertex> ARuntimeLandscape::GetCornerVerticesOfBox(const FBox2D&
 			LandscapeVertex.VertexIndex = 0;
 			LandscapeVertex.ContainingComponent = FallbackComp;
 		}
+
+		++i;
 	}
 #endif
- 
+
 	return Result;
 }
 
@@ -409,7 +411,7 @@ FVector ARuntimeLandscape::GetNormalDirectionInBox(const FBox2D& Box, float BoxA
 		DebugLocation.Z = 200.0f * i;
 		DrawDebugLine(GetWorld(), DebugLocation, DebugLocation + Result * 300.0f, FColor::Blue);
 	}
-	
+
 	return Result;
 }
 
@@ -449,7 +451,8 @@ void ARuntimeLandscape::InitializeDynamicMaterial()
 {
 	if (!LandscapeMaterialInstance && LandscapeMaterialParent)
 	{
-		LandscapeMaterialInstance = UKismetMaterialLibrary::CreateDynamicMaterialInstance(this, LandscapeMaterialParent);
+		LandscapeMaterialInstance =
+			UKismetMaterialLibrary::CreateDynamicMaterialInstance(this, LandscapeMaterialParent);
 		for (URuntimeLandscapeComponent* LandscapeComponent : LandscapeComponents)
 		{
 			LandscapeComponent->SetMaterial(0, LandscapeMaterialInstance);
@@ -683,9 +686,14 @@ void ARuntimeLandscape::SetUpLayerColorChannelMappings()
 	// map layers to render target color channels
 	// TODO: implement multiple edit layers
 	// int32 EditLayerCount = ParentLandscape->GetEditLayersConst().Num();
+	TArrayView<const FLandscapeLayer> ParentLayers = ParentLandscape->GetLayersConst();
+	for (const FLandscapeLayer& Layer : ParentLayers)
+	{
+		UE_LOG(RuntimeEditableLandscape, Warning, TEXT("TEST %s"), *Layer.Name_DEPRECATED.ToString());
+	}
+
 	TArray<ULandscapeLayerInfoObject*> LayerInfos;
 	ParentLandscape->GetUsedPaintLayers(0, LayerInfos);
-
 	for (FRuntimeLandscapeGroundTypeLayerSet& LayerSet : GroundLayerSets)
 	{
 		for (FGroundTypeMapping& Mapping : LayerSet.GroundTypeMappings)
@@ -708,7 +716,7 @@ void ARuntimeLandscape::SetUpLayerColorChannelMappings()
 					break;
 				default:
 					ensureMsgf(
-						false, TEXT("Cound not find layer info at the parent Landscape for layerinfo object '%s'"),
+						false, TEXT("Cound not find layer info at the parent Landscape for layer-info object '%s'"),
 						*Mapping.LayerInfoObject->GetName());
 				}
 			}
