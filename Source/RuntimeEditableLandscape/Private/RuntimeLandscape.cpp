@@ -166,10 +166,8 @@ void ARuntimeLandscape::BakeLandscapeLayersAndDestroyLandscape()
 {
 	if (ParentLandscape)
 	{
-		if (bBakeLayersOnBeginPlay)
-		{
-			BakeLandscapeLayers();
-		}
+		InitializeRenderTargets(true);
+		BakeLandscapeLayers();
 
 		// ParentLandscape->Destroy();
 		ParentLandscape = nullptr;
@@ -336,20 +334,21 @@ FBox2D ARuntimeLandscape::GetComponentBounds(int32 SectionIndex) const
 		FVector2D((SectionCoordinates.X + 1) * SectionSize.X, (SectionCoordinates.Y + 1) * SectionSize.Y));
 }
 
-TArray<FLandscapeVertex> ARuntimeLandscape::GetCornerVerticesOfBox(const FBox2D& Box, float BoxAngle) const
+bool ARuntimeLandscape::TryGetCornerVerticesOfBox(const FBox2D& Box, float BoxYaw,
+                                                  TArray<FLandscapeVertex>& OutVertices) const
 {
-	TArray<FLandscapeVertex> Result;
-	Result.AddUninitialized(4);
+	check(OutVertices.IsEmpty());
+	OutVertices.InsertDefaulted(0, 4);
 
 	for (const URuntimeLandscapeComponent* LandscapeComponent : GetComponentsInArea(Box))
 	{
 		int32 i = 0;
-		for (int32 VertexIndex : LandscapeComponent->GetCornerVerticesOfBox(Box, BoxAngle))
+		for (int32 VertexIndex : LandscapeComponent->GetCornerVerticesOfBox(Box, BoxYaw))
 		{
 			if (VertexIndex != INDEX_NONE)
 			{
-				Result[i].VertexIndex = VertexIndex;
-				Result[i].ContainingComponent = LandscapeComponent;
+				OutVertices[i].VertexIndex = VertexIndex;
+				OutVertices[i].ContainingComponent = LandscapeComponent;
 			}
 
 			++i;
@@ -358,12 +357,14 @@ TArray<FLandscapeVertex> ARuntimeLandscape::GetCornerVerticesOfBox(const FBox2D&
 
 #if WITH_EDITOR
 	int32 i = 0;
-	for (FLandscapeVertex& LandscapeVertex : Result)
+	bool bIsVertexInfoMissing = false;
+	for (FLandscapeVertex& LandscapeVertex : OutVertices)
 	{
 		if (LandscapeVertex.VertexIndex < 0 || LandscapeVertex.VertexIndex >= GetTotalVertexAmountPerComponent())
 		{
-			FVector2D DiagonalLowerUpper = Box.GetExtent().GetRotated(BoxAngle);
-			FVector2D DiagonalUpperLower = FVector2D(Box.GetExtent().X, -Box.GetExtent().Y).GetRotated(BoxAngle);
+			bIsVertexInfoMissing = true;
+			FVector2D DiagonalLowerUpper = Box.GetExtent().GetRotated(BoxYaw);
+			FVector2D DiagonalUpperLower = FVector2D(Box.GetExtent().X, -Box.GetExtent().Y).GetRotated(BoxYaw);
 
 			FVector2D WorldLocation;
 			switch (i)
@@ -380,39 +381,110 @@ TArray<FLandscapeVertex> ARuntimeLandscape::GetCornerVerticesOfBox(const FBox2D&
 			case 3:
 				WorldLocation = Box.GetCenter() + DiagonalUpperLower;
 				break;
+			default:
+				ensure(false);
+				WorldLocation = FVector2D::Zero();
 			}
 
 			URuntimeLandscapeComponent* FallbackComp = GetComponentsInArea(Box)[0];
 			FVector DebugSphereLocation = FVector(WorldLocation, FallbackComp->InitialHeightValues[0] + 100.0f);
 			DrawDebugSphere(GetWorld(), DebugSphereLocation, 100.0f, 8, FColor::Red, false, 30.0f);
-			checkNoEntry();
+			ensure(false);
 			LandscapeVertex.VertexIndex = 0;
 			LandscapeVertex.ContainingComponent = FallbackComp;
+
+			if (bIsVertexInfoMissing)
+			{
+				for (const URuntimeLandscapeComponent* LandscapeComponent : GetComponentsInArea(Box))
+				{
+					FBoxSphereBounds Bounds = LandscapeComponent->GetLocalBounds();
+					DrawDebugBox(GetWorld(), Bounds.Origin, Bounds.BoxExtent, FColor::Blue);
+				}
+			}
 		}
 
 		++i;
 	}
 #endif
 
-	return Result;
+	return !OutVertices.ContainsByPredicate([](const FLandscapeVertex& Current)
+	{
+		return Current.VertexIndex == INDEX_NONE;
+	});
 }
 
-FVector ARuntimeLandscape::GetNormalDirectionInBox(const FBox2D& Box, float BoxAngle) const
+bool ARuntimeLandscape::TryCalculatePitchAndRollToMatchLandscapeNormal(const FBox2D& Box, float BoxYaw, float& OutPitch,
+                                                                       float& OutRoll) const
 {
-	TArray<FLandscapeVertex> CornerVertices = GetCornerVerticesOfBox(Box, BoxAngle);
-	// ensure(false); // Implement normal calculation
-	FPlane Plane1 = FPlane(CornerVertices[2].GetWorldLocation(), CornerVertices[1].GetWorldLocation(),
-	                       CornerVertices[0].GetWorldLocation());
-	// FPlane Plane2 = FPlane(CornerVertices[1].GetWorldLocation(), CornerVertices[2].GetWorldLocation(), CornerVertices[3].GetWorldLocation());
-	FVector Result = Plane1.GetNormal();
-	FVector DebugLocation = FVector(Box.GetCenter(), 0.0f);
-	for (int32 i = 0; i < 20.0f; ++i)
+	auto PythagorasAngleAlpha = [](float Length, float Height)
 	{
-		DebugLocation.Z = 200.0f * i;
-		DrawDebugLine(GetWorld(), DebugLocation, DebugLocation + Result * 300.0f, FColor::Blue);
+		float DirectionOffset = Height >= 0.0f ? -90.0f : 90.0f;
+		return FMath::RadiansToDegrees(FMath::Atan(Length / Height)) + DirectionOffset;
+	};
+
+	float ElevationX = 0.0f;
+	float ElevationY = 0.0f;
+	if (TryCalculateElevationInBoxDirections(Box, BoxYaw, ElevationX, ElevationY))
+	{
+		GEngine->AddOnScreenDebugMessage(1, 1.0f, FColor::Magenta,
+		                                 FString::Printf(
+			                                 TEXT("Elevation X: %f Elevation Y: %f"), ElevationX, ElevationY));
+		FVector2D BoxSize = Box.GetExtent() * 2.0f;
+		OutPitch = PythagorasAngleAlpha(BoxSize.X, ElevationX);
+		OutRoll = PythagorasAngleAlpha(BoxSize.Y, ElevationY);
+		return true;
 	}
 
-	return Result;
+	return false;
+}
+
+bool ARuntimeLandscape::TryCalculateElevationInBoxDirections(const FBox2D& Box, float BoxYaw,
+                                                             float& OutElevationXDirection,
+                                                             float& OutElevationYDirection) const
+{
+	TArray<FLandscapeVertex> CornerVertices;
+	if (TryGetCornerVerticesOfBox(Box, BoxYaw, CornerVertices))
+	{
+		// get initial height values
+		float TopLeftCornerHeight =
+			CornerVertices[0].ContainingComponent->GetInitialHeightValues()[CornerVertices[0].VertexIndex];
+
+		float TopRightCornerHeight =
+			CornerVertices[1].ContainingComponent->GetInitialHeightValues()[CornerVertices[1].VertexIndex];
+
+		float BottomRightCornerHeight =
+			CornerVertices[2].ContainingComponent->GetInitialHeightValues()[CornerVertices[2].VertexIndex];
+
+		float BottomLeftCornerHeight =
+			CornerVertices[3].ContainingComponent->GetInitialHeightValues()[CornerVertices[3].VertexIndex];
+
+		// calculate average heights for box edges
+		float AvgHeightTopEdge = (TopLeftCornerHeight + TopRightCornerHeight) * 0.5f;
+		float AvgHeightBottomEdge = (BottomLeftCornerHeight + BottomRightCornerHeight) * 0.5f;
+		float AvgHeightLeftEdge = (TopLeftCornerHeight + BottomLeftCornerHeight) * 0.5f;
+		float AvgHeightRightEdge = (TopRightCornerHeight + BottomRightCornerHeight) * 0.5f;
+
+		OutElevationYDirection = AvgHeightTopEdge - AvgHeightBottomEdge;
+		OutElevationXDirection = AvgHeightLeftEdge - AvgHeightRightEdge;
+		return true;
+	}
+
+	return false;
+}
+
+bool ARuntimeLandscape::TryGetNormalDirectionInBox(const FBox2D& Box, float BoxYaw,
+                                                   FVector& OutNormalDirection) const
+{
+	TArray<FLandscapeVertex> CornerVertices;
+	if (TryGetCornerVerticesOfBox(Box, BoxYaw, CornerVertices))
+	{
+		FPlane Plane = FPlane(CornerVertices[2].GetWorldLocation(), CornerVertices[1].GetWorldLocation(),
+		                      CornerVertices[0].GetWorldLocation());
+		OutNormalDirection = Plane.GetNormal();
+		return true;
+	}
+
+	return false;
 }
 
 void ARuntimeLandscape::UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLayerSet& LayerSet)
@@ -424,7 +496,8 @@ void ARuntimeLandscape::UpdateVertexLayerWeights(FRuntimeLandscapeGroundTypeLaye
 			bool bHasMatchingResolution = LayerSet.RenderTarget->SizeX == Resource->GetSizeX()
 				&& LayerSet.RenderTarget->SizeY == Resource->GetSizeY();
 			if (ensureAlwaysMsgf(bHasMatchingResolution,
-			                     TEXT("Render target hat non matching resolution. Save the asset %s and try again."),
+			                     TEXT("Render target hat non matching resolution. Save the asset %s and try again."
+			                     ),
 			                     *LayerSet.RenderTarget->GetName()))
 			{
 				FImage MaskImage;
@@ -465,7 +538,7 @@ void ARuntimeLandscape::BakeLandscapeLayers()
 	if (ParentLandscape)
 	{
 		InitializeDynamicMaterial();
-		SetUpRenderTargets();
+		InitializeRenderTargets(false);
 
 #if WITH_EDITORONLY_DATA
 		SetUpLayerColorChannelMappings();
@@ -622,7 +695,7 @@ void ARuntimeLandscape::InitializeFromLandscape()
 #endif
 }
 
-void ARuntimeLandscape::SetUpRenderTargets()
+void ARuntimeLandscape::InitializeRenderTargets(bool bOverrideExisting)
 {
 	if (!IsValid(LandscapeMaterialInstance))
 	{
@@ -631,7 +704,7 @@ void ARuntimeLandscape::SetUpRenderTargets()
 
 	for (int32 i = 0; i < GroundLayerSets.Num(); ++i)
 	{
-		if (!IsValid(GroundLayerSets[i].RenderTarget))
+		if (bOverrideExisting || !IsValid(GroundLayerSets[i].RenderTarget))
 		{
 			GroundLayerSets[i].RenderTarget = UKismetRenderingLibrary::CreateRenderTarget2D(
 				GetWorld(), MeshResolution.X + 1, MeshResolution.Y + 1,
@@ -647,7 +720,8 @@ void ARuntimeLandscape::SetUpRenderTargets()
 			{
 				if (Parameter.Key.Name.IsEqual(MATERIAL_PARAMETER_GROUND_TYPE_LAYER_MASK))
 				{
-					LandscapeMaterialInstance->SetTextureParameterValue(ParameterName, GroundLayerSets[i].RenderTarget);
+					LandscapeMaterialInstance->SetTextureParameterValue(
+						ParameterName, GroundLayerSets[i].RenderTarget);
 					bDoesParameterExist = true;
 					break;
 				}
@@ -655,7 +729,8 @@ void ARuntimeLandscape::SetUpRenderTargets()
 
 			if (!bDoesParameterExist)
 			{
-				UE_LOG(RuntimeEditableLandscape, Warning, TEXT("The landscape material %s has no parameter named %s"),
+				UE_LOG(RuntimeEditableLandscape, Warning,
+				       TEXT("The landscape material %s has no parameter named %s"),
 				       *LandscapeMaterialInstance->GetName(), *ParameterName.ToString())
 			}
 		}
@@ -683,6 +758,11 @@ void ARuntimeLandscape::PreInitializeComponents()
 
 void ARuntimeLandscape::SetUpLayerColorChannelMappings()
 {
+	if (!ParentLandscape)
+	{
+		return;
+	}
+
 	// map layers to render target color channels
 	// TODO: implement multiple edit layers
 	// int32 EditLayerCount = ParentLandscape->GetEditLayersConst().Num();
@@ -715,9 +795,9 @@ void ARuntimeLandscape::SetUpLayerColorChannelMappings()
 					Mapping.RenderTargetColorChannel = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
 					break;
 				default:
-					ensureMsgf(
-						false, TEXT("Cound not find layer info at the parent Landscape for layer-info object '%s'"),
-						*Mapping.LayerInfoObject->GetName());
+					UE_LOG(RuntimeEditableLandscape, Warning,
+					       TEXT("Cound not find layer info at the parent Landscape for layer-info object '%s'"),
+					       *Mapping.LayerInfoObject->GetName());
 				}
 			}
 		}
@@ -762,7 +842,8 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 		}
 	}
 
-	if (PropertyChangedEvent.MemberProperty->GetName() == FName("BodyInstance") || PropertyChangedEvent.MemberProperty->
+	if (PropertyChangedEvent.MemberProperty->GetName() == FName("BodyInstance") || PropertyChangedEvent.
+		MemberProperty->
 		GetName() == FName("bGenerateOverlapEvents"))
 	{
 		for (URuntimeLandscapeComponent* Component : LandscapeComponents)

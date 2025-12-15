@@ -251,16 +251,21 @@ public:
 	 * Get the closest vertices to the corners of the box
 	 * @return The landscape vertices ordered in clockwise rotation starting at top left corner of the box
 	 */
-	TArray<FLandscapeVertex> GetCornerVerticesOfBox(const FBox2D& Box, float BoxAngle) const;
+	bool TryGetCornerVerticesOfBox(const FBox2D& Box, float BoxYaw, TArray<FLandscapeVertex>& OutVertices) const;
 
+	bool TryCalculatePitchAndRollToMatchLandscapeNormal(const FBox2D& Box, float BoxYaw, float& OutPitch,
+	                                                    float& OutRoll) const;
+	bool TryCalculateElevationInBoxDirections(const FBox2D& Box, float BoxYaw, float& OutElevationXDirection,
+	                                          float& OutElevationYDirection) const;
 	/**
 	 * Calculate the Normal direction of the landscape for the provided box and angle
 	 * The normal is calculated with the corner vertices
 	 * @param Box The box for which the normal is calculated
-	 * @param BoxAngle the angle of the Box
+	 * @param BoxYaw the yaw of the Box
+	 * @param OutNormalDirection
 	 * @return 
 	 */
-	FVector GetNormalDirectionInBox(const FBox2D& Box, float BoxAngle) const;
+	bool TryGetNormalDirectionInBox(const FBox2D& Box, float BoxYaw, FVector& OutNormalDirection) const;
 
 protected:
 	UPROPERTY(BlueprintReadOnly)
@@ -285,8 +290,6 @@ protected:
 	float PaintLayerResolution = 0.01f;
 	UPROPERTY(EditAnywhere)
 	TMap<TEnumAsByte<ELayerShape>, FGroundTypeBrushData> GroundTypeBrushes;
-	UPROPERTY(EditAnywhere)
-	bool bBakeLayersOnBeginPlay = true;
 	UPROPERTY()
 	/** The area a single square occupies */
 	float AreaPerSquare;
@@ -385,7 +388,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> DebugMaterial;
 
-	void SetUpRenderTargets();
+	void InitializeRenderTargets(bool bOverrideExisting);
 	virtual void PreInitializeComponents() override;
 	void SetUpLayerColorChannelMappings();
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

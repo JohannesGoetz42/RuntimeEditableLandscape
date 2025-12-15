@@ -18,8 +18,8 @@ protected:
 	UPROPERTY(EditAnywhere)
 	float HeightValue;
 
-	float HeightDifferenceTopBottom = 0.0f;
-	float HeightDifferenceLeftRight = 0.0f;
+	float ElevationYDirection = 0.0f;
+	float ElevationXDirection = 0.0f;
 
 	virtual void ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
 	                           const ULandscapeLayerComponent* LayerComponent, float& OutHeightValue,

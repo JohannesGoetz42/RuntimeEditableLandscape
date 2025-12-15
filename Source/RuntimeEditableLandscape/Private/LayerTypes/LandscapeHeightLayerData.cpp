@@ -23,36 +23,11 @@ void ULandscapeHeightLayerData::InitializeLayerMemory(const ULandscapeLayerCompo
                                                       const URuntimeLandscapeComponent* LandscapeComponent)
 {
 	float BoxAngle = OwningLayer->GetBoundsComponent()->GetComponentRotation().Yaw;
-	TArray<FLandscapeVertex> CornerVertices = LandscapeComponent->GetParentLandscape()->GetCornerVerticesOfBox(
-		OwningLayer->GetBoundingBox(), BoxAngle);
-
-	// get initial height values
-	float TopLeftCornerHeight = CornerVertices[0].ContainingComponent == nullptr
-		                            ? 0.0f
-		                            : CornerVertices[0].ContainingComponent->GetInitialHeightValues()[CornerVertices[0].
-			                            VertexIndex];
-
-	float TopRightCornerHeight = CornerVertices[1].ContainingComponent == nullptr
-		                             ? 0.0f
-		                             : CornerVertices[1].ContainingComponent->GetInitialHeightValues()[CornerVertices[1]
-			                             .VertexIndex];
-
-	float BottomRightCornerHeight = CornerVertices[2].ContainingComponent == nullptr
-		                                ? 0.0f
-		                                : CornerVertices[2].ContainingComponent->GetInitialHeightValues()[CornerVertices
-			                                [2].VertexIndex];
-
-	float BottomLeftCornerHeight = CornerVertices[3].ContainingComponent == nullptr
-		                               ? 0.0f
-		                               : CornerVertices[3].ContainingComponent->GetInitialHeightValues()[CornerVertices[
-			                               3].VertexIndex];
-
-	// calculate average heights for box edges
-	float AvgHeightTopEdge = (TopLeftCornerHeight + TopRightCornerHeight) * 0.5f;
-	float AvgHeightBottomEdge = (BottomLeftCornerHeight + BottomRightCornerHeight) * 0.5f;
-	float AvgHeightLeftEdge = (TopLeftCornerHeight + BottomLeftCornerHeight) * 0.5f;
-	float AvgHeightRightEdge = (TopRightCornerHeight + BottomRightCornerHeight) * 0.5f;
-
-	HeightDifferenceTopBottom = AvgHeightBottomEdge - AvgHeightTopEdge;
-	HeightDifferenceLeftRight = AvgHeightLeftEdge - AvgHeightRightEdge;
+	if (!LandscapeComponent->GetParentLandscape()->TryCalculateElevationInBoxDirections(
+		OwningLayer->GetBoundingBox(), BoxAngle, ElevationXDirection, ElevationYDirection))
+	{
+		ElevationXDirection = 0;
+		ElevationYDirection = 0;
+		ensureAlways(false);
+	}
 }
