@@ -340,7 +340,12 @@ bool ARuntimeLandscape::TryGetCornerVerticesOfBox(const FBox2D& Box, float BoxYa
 	check(OutVertices.IsEmpty());
 	OutVertices.InsertDefaulted(0, 4);
 
-	for (const URuntimeLandscapeComponent* LandscapeComponent : GetComponentsInArea(Box))
+	// grow the box in diagonal so it contains the original box regardless of it's yaw
+	float Diagonal = FMath::Sqrt(FMath::Square(Box.GetExtent().X) + FMath::Square(Box.GetExtent().Y));
+	FVector2D DiagonalVector(Diagonal);
+	FBox2D GrownBox(Box.GetCenter() - DiagonalVector, Box.GetCenter() + DiagonalVector);
+
+	for (const URuntimeLandscapeComponent* LandscapeComponent : GetComponentsInArea(GrownBox))
 	{
 		int32 i = 0;
 		for (int32 VertexIndex : LandscapeComponent->GetCornerVerticesOfBox(Box, BoxYaw))
