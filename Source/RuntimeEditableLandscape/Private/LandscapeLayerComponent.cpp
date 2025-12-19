@@ -240,16 +240,18 @@ bool ULandscapeLayerComponent::TryCalculateBoundsDistances(FLandscapeLayerVertex
 		FVector BoundsExtent = BoundsComponent->GetLocalBounds().BoxExtent;
 		if (ensureAlways(BoundsExtent.X > 0.0f && BoundsExtent.Y > 0.0f))
 		{
-			FVector2D LocationRelativeToBounds = WorldLocation - FVector2D(BoundsComponent->GetComponentLocation().X,
-			                                                               BoundsComponent->GetComponentLocation().Y);
+			FVector ComponentLocation = BoundsComponent->GetComponentLocation();
+			FVector2D LocationRelativeToBounds = WorldLocation - FVector2D(ComponentLocation.X, ComponentLocation.Y);
+			LocationRelativeToBounds = LocationRelativeToBounds.
+				GetRotated(-BoundsComponent->GetComponentRotation().Yaw);
 
-			LocationRelativeToBounds = LocationRelativeToBounds.GetRotated(BoundsComponent->GetComponentRotation().Yaw);
+			FVector2D LocationRelativeToTopLeftCorner = FVector2D(BoundsExtent.X, BoundsExtent.Y) -
+				LocationRelativeToBounds;
 
-			FVector2D LocationRelativeToTopLeftCorner = LocationRelativeToBounds
-				+ FVector2D(BoundsExtent.X, BoundsExtent.Y);
+			FVector BoundsSize = BoundsExtent * 2.0f;
+			OutVertexInfo.BoundsDistanceLeft = LocationRelativeToTopLeftCorner.X / BoundsSize.X;
+			OutVertexInfo.BoundsDistanceTop = LocationRelativeToTopLeftCorner.Y / BoundsSize.Y;
 
-			OutVertexInfo.BoundsDistanceLeft = LocationRelativeToTopLeftCorner.X / BoundsExtent.X;
-			OutVertexInfo.BoundsDistanceTop = LocationRelativeToTopLeftCorner.Y / BoundsExtent.Y;
 			return true;
 		}
 	}

@@ -360,58 +360,6 @@ bool ARuntimeLandscape::TryGetCornerVerticesOfBox(const FBox2D& Box, float BoxYa
 		}
 	}
 
-#if WITH_EDITOR
-	int32 i = 0;
-	bool bIsVertexInfoMissing = false;
-	for (FLandscapeVertex& LandscapeVertex : OutVertices)
-	{
-		if (LandscapeVertex.VertexIndex < 0 || LandscapeVertex.VertexIndex >= GetTotalVertexAmountPerComponent())
-		{
-			bIsVertexInfoMissing = true;
-			FVector2D DiagonalLowerUpper = Box.GetExtent().GetRotated(BoxYaw);
-			FVector2D DiagonalUpperLower = FVector2D(Box.GetExtent().X, -Box.GetExtent().Y).GetRotated(BoxYaw);
-
-			FVector2D WorldLocation;
-			switch (i)
-			{
-			case 0:
-				WorldLocation = Box.GetCenter() - DiagonalUpperLower;
-				break;
-			case 1:
-				WorldLocation = Box.GetCenter() - DiagonalLowerUpper;
-				break;
-			case 2:
-				WorldLocation = Box.GetCenter() + DiagonalLowerUpper;
-				break;
-			case 3:
-				WorldLocation = Box.GetCenter() + DiagonalUpperLower;
-				break;
-			default:
-				ensure(false);
-				WorldLocation = FVector2D::Zero();
-			}
-
-			URuntimeLandscapeComponent* FallbackComp = GetComponentsInArea(Box)[0];
-			FVector DebugSphereLocation = FVector(WorldLocation, FallbackComp->InitialHeightValues[0] + 100.0f);
-			DrawDebugSphere(GetWorld(), DebugSphereLocation, 100.0f, 8, FColor::Red, false, 30.0f);
-			ensure(false);
-			LandscapeVertex.VertexIndex = 0;
-			LandscapeVertex.ContainingComponent = FallbackComp;
-
-			if (bIsVertexInfoMissing)
-			{
-				for (const URuntimeLandscapeComponent* LandscapeComponent : GetComponentsInArea(Box))
-				{
-					FBoxSphereBounds Bounds = LandscapeComponent->GetLocalBounds();
-					DrawDebugBox(GetWorld(), Bounds.Origin, Bounds.BoxExtent, FColor::Blue);
-				}
-			}
-		}
-
-		++i;
-	}
-#endif
-
 	return !OutVertices.ContainsByPredicate([](const FLandscapeVertex& Current)
 	{
 		return Current.VertexIndex == INDEX_NONE;

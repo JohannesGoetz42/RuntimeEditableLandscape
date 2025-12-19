@@ -18,9 +18,10 @@ protected:
 	UPROPERTY(EditAnywhere)
 	float HeightValue;
 
-	float ElevationYDirection = 0.0f;
-	float ElevationXDirection = 0.0f;
-
+	float LayerElevationX;
+	float LayerElevationY;
+	float TopLeftHeight;
+	
 	virtual void ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
 	                           const ULandscapeLayerComponent* LayerComponent, float& OutHeightValue,
 	                           FColor& OutVertexColor, const FLandscapeLayerVertexInfo& VertexInfo) const override;

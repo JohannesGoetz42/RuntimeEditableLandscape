@@ -4,30 +4,43 @@
 #include "LayerTypes/LandscapeHeightLayerData.h"
 
 #include "LandscapeLayerComponent.h"
-#include "RuntimeLandscape.h"
-#include "RuntimeLandscapeComponent.h"
+#include "Interfaces/ControlsLandscapeHeightLayer.h"
 
 void ULandscapeHeightLayerData::ApplyToVertex(URuntimeLandscapeComponent* LandscapeComponent,
                                               const ULandscapeLayerComponent* LayerComponent,
                                               float& OutHeightValue, FColor& OutVertexColor,
                                               const FLandscapeLayerVertexInfo& VertexInfo) const
 {
-	float AdjustedHeightValue = HeightValue + LayerComponent->GetOwner()->GetActorLocation().Z
-		+ VertexInfo.BoundsDistanceLeft * HeightDifferenceLeftRight
-		+ VertexInfo.BoundsDistanceTop * HeightDifferenceTopBottom;
+	float InterpolatedHeightValue = VertexInfo.BoundsDistanceLeft * LayerElevationX
+		+ VertexInfo.BoundsDistanceTop * LayerElevationY
+		+ TopLeftHeight;
 
-	OutHeightValue = FMath::Lerp(AdjustedHeightValue, OutHeightValue, VertexInfo.SmoothingFactor);
+	OutHeightValue = FMath::Lerp(InterpolatedHeightValue + HeightValue, OutHeightValue, VertexInfo.SmoothingFactor);
 }
 
 void ULandscapeHeightLayerData::InitializeLayerMemory(const ULandscapeLayerComponent* OwningLayer,
                                                       const URuntimeLandscapeComponent* LandscapeComponent)
 {
-	float BoxAngle = OwningLayer->GetBoundsComponent()->GetComponentRotation().Yaw;
-	if (!LandscapeComponent->GetParentLandscape()->TryCalculateElevationInBoxDirections(
-		OwningLayer->GetBoundingBox(), BoxAngle, ElevationXDirection, ElevationYDirection))
+	if (IControlsLandscapeHeightLayer* HeightController = Cast<IControlsLandscapeHeightLayer>(OwningLayer->GetOwner()))
 	{
-		ElevationXDirection = 0;
-		ElevationYDirection = 0;
-		ensureAlways(false);
+		float Pitch;
+		float Roll;
+		HeightController->GetPitchAndRoll(Pitch, Roll);
+
+		FVector2D BoundsSize = OwningLayer->GetBoundingBox().GetExtent();
+
+		float SlopeX = FMath::Tan(FMath::DegreesToRadians(Pitch));
+		LayerElevationX = SlopeX * -BoundsSize.X;
+
+		float SlopeY = FMath::Tan(FMath::DegreesToRadians(Roll));
+		LayerElevationY = SlopeY * BoundsSize.Y;
+
+		TopLeftHeight = OwningLayer->GetOwner()->GetActorLocation().Z - (LayerElevationX + LayerElevationY) * 0.5f;
+	}
+	else
+	{
+		LayerElevationX = 0.0f;
+		LayerElevationY = 0.0f;
+		TopLeftHeight = OwningLayer->GetOwner()->GetActorLocation().Z;
 	}
 }
