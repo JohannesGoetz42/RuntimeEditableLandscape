@@ -114,15 +114,17 @@ public:
 		--ActiveRunners;
 	}
 
+	FORCEINLINE const TArray<URuntimeLandscapeComponent*>& GetRebuildQueue() const { return RebuildQueue; }
+
 	TArray<int32> GenerateTriangleArray(const TSet<int32>* HoleIndices) const;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<URuntimeLandscapeComponent*> RebuildQueue;
-	
+
 private:
 	UPROPERTY(VisibleAnywhere)
-	URuntimeLandscapeComponent* CurrentComponent = nullptr;
+	TObjectPtr<URuntimeLandscapeComponent> CurrentComponent = nullptr;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<ARuntimeLandscape> Landscape;
 	UPROPERTY(VisibleAnywhere)

@@ -179,8 +179,6 @@ void URuntimeLandscapeRebuildManager::RebuildNextInQueue()
 void URuntimeLandscapeRebuildManager::TickComponent(float DeltaTime, enum ELevelTick TickType,
                                                     FActorComponentTickFunction* ThisTickFunction)
 {
-	OnRebuildProgress.Broadcast(this);
-	
 	if (ActiveRunners < 1)
 	{
 		switch (DataBuffer.RebuildState)
@@ -195,5 +193,7 @@ void URuntimeLandscapeRebuildManager::TickComponent(float DeltaTime, enum ELevel
 		default:
 			checkNoEntry();
 		}
+
+		OnRebuildProgress.Broadcast(this);
 	}
 }

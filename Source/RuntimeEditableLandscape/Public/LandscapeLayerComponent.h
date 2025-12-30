@@ -65,6 +65,7 @@ public:
 	FORCEINLINE const FBox2D& GetBoundingBox() const { return BoundingBox; }
 	FORCEINLINE const TArray<ULandscapeLayerDataBase*>& GetLayerData() const { return Layers; }
 	FORCEINLINE const UPrimitiveComponent* GetBoundsComponent() const { return BoundsComponent; }
+	FORCEINLINE const TSet<TObjectPtr<ARuntimeLandscape>>& GetAffectedLandscapes() const { return AffectedLandscapes; }
 
 	void ApplyToLandscape();
 	bool IsAffectedByLayer(FVector2D Location) const;

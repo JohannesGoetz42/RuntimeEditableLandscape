@@ -379,9 +379,6 @@ bool ARuntimeLandscape::TryCalculatePitchAndRollToMatchLandscapeNormal(const FBo
 	float ElevationY = 0.0f;
 	if (TryCalculateElevationInBoxDirections(Box, BoxYaw, ElevationX, ElevationY))
 	{
-		GEngine->AddOnScreenDebugMessage(1, 1.0f, FColor::Magenta,
-		                                 FString::Printf(
-			                                 TEXT("Elevation X: %f Elevation Y: %f"), ElevationX, ElevationY));
 		FVector2D BoxSize = Box.GetExtent() * 2.0f;
 		OutPitch = PythagorasAngleAlpha(BoxSize.X, ElevationX);
 		OutRoll = PythagorasAngleAlpha(BoxSize.Y, ElevationY);
