@@ -184,6 +184,11 @@ void URuntimeLandscapeComponent::InitializeSubcomponents()
 
 	for (TSubclassOf<UActorComponent> SubComponentType : ParentLandscape->SubComponentTypes)
 	{
+		if (!ensure(SubComponentType))
+		{
+			continue;
+		}
+		
 		int32 i = OldChildComponents.IndexOfByPredicate(
 			[SubComponentType](const USceneComponent* Current)
 			{
