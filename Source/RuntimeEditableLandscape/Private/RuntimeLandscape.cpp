@@ -89,6 +89,11 @@ void ARuntimeLandscape::AddLandscapeLayer(const ULandscapeLayerComponent* LayerT
 void ARuntimeLandscape::DrawGroundType(const ULandscapeGroundTypeData* GroundType, ELayerShape Shape,
                                        const FTransform& WorldTransform, const FVector& BrushExtent)
 {
+	if (GroundLayerSets.IsEmpty())
+	{
+		return;
+	}
+	
 	FRuntimeLandscapeGroundTypeLayerSet* LayerSet = nullptr;
 	for (FRuntimeLandscapeGroundTypeLayerSet& CurrentLayerSet : GroundLayerSets)
 	{

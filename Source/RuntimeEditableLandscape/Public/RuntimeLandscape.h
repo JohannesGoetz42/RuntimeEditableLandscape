@@ -149,7 +149,7 @@ public:
 	 * NOTE: Requires 'Navigation Mesh->Runtime->Runtime Generation->Dynamic' in the project settings
 	 */
 	uint8 bUpdateNavigation : 1 = 1;
-	UPROPERTY(EditAnywhere, meta = (MustImplement = "RuntimeLandscapeSubcomponent"))
+	UPROPERTY(EditAnywhere, meta = (MustImplement = "/Script/RuntieEditableLandscape.RuntimeLandscapeSubcomponent"))
 	TArray<TSubclassOf<UActorComponent>> SubComponentTypes;
 
 	FOnRuntimeLandscapeInitialized OnLandscapeInitialized;
