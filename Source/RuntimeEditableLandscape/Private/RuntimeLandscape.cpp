@@ -31,20 +31,6 @@ FVector FLandscapeVertex::GetWorldLocation() const
 	return FVector::Zero();
 }
 
-TArray<FName> FRuntimeLandscapeGroundTypeLayerSet::GetLayerNames() const
-{
-	TArray<FName> Result;
-	for (const FGroundTypeMapping& GroundLayer : GroundTypeMappings)
-	{
-		if (GroundLayer.GroundTypeData)
-		{
-			Result.Add(GroundLayer.GroundTypeData->LandscapeLayerName);
-		}
-	}
-
-	return Result;
-}
-
 int32 FRuntimeLandscapeGroundTypeLayerSet::GetPixelIndexForCoordinates(FIntVector2 VertexCoords) const
 {
 	int32 Result = VertexCoords.X;
@@ -93,7 +79,7 @@ void ARuntimeLandscape::DrawGroundType(const ULandscapeGroundTypeData* GroundTyp
 	{
 		return;
 	}
-	
+
 	FRuntimeLandscapeGroundTypeLayerSet* LayerSet = nullptr;
 	for (FRuntimeLandscapeGroundTypeLayerSet& CurrentLayerSet : GroundLayerSets)
 	{
@@ -513,9 +499,15 @@ void ARuntimeLandscape::BakeLandscapeLayers()
 				TArray<FName> BakedLayerNames;
 				for (const ULandscapeLayerInfoObject* PaintLayer : PaintLayers)
 				{
-					if (LayerSet.GetLayerNames().Contains(PaintLayer->LayerName))
+					bool bHasMatchingMapping = LayerSet.GroundTypeMappings.ContainsByPredicate(
+						[PaintLayer](const FGroundTypeMapping& Current)
+						{
+							return PaintLayer == Current.LayerInfoObject;
+						});
+
+					if (bHasMatchingMapping)
 					{
-						BakedLayerNames.Add(PaintLayer->LayerName);
+						BakedLayerNames.Add(PaintLayer->GetLayerName());
 					}
 					else
 					{

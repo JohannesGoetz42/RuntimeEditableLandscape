@@ -68,11 +68,9 @@ struct FGroundTypeMapping
 			+ ColorAtPixel.A * RenderTargetColorChannel.A);
 	}
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<ULandscapeLayerInfoObject> LayerInfoObject;
-#endif
-
+	
 private:
 	UPROPERTY(VisibleAnywhere)
 	/** 
@@ -107,7 +105,6 @@ struct FRuntimeLandscapeGroundTypeLayerSet
 	 */
 	TArray<FColor> VertexLayerWeights;
 
-	TArray<FName> GetLayerNames() const;
 	int32 GetPixelIndexForCoordinates(FIntVector2 VertexCoords) const;
 };
 
