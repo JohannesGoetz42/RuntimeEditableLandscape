@@ -17,6 +17,26 @@ URuntimeLandscapeRebuildManager::URuntimeLandscapeRebuildManager(const FObjectIn
 	PrimaryComponentTick.TickInterval = 0.1f;
 }
 
+void URuntimeLandscapeRebuildManager::QueueRebuild(int32 ComponentIndex)
+{
+	if (Landscape->LandscapeComponents.IsValidIndex(ComponentIndex))
+	{
+		QueueRebuild(Landscape->LandscapeComponents[ComponentIndex]);
+	}
+}
+
+void URuntimeLandscapeRebuildManager::RebuildArea(int32 MinColumn, int32 MaxColumn, int32 MinRow, int32 MaxRow)
+{
+	for (int32 Column = MinColumn; Column <= MaxColumn; ++Column)
+	{
+		for (int32 Row = MinRow; Row <= MaxRow; ++Row)
+		{
+			int32 ComponentIndex = Landscape->GetComponentIndexAtCoordinate(Column, Row);
+			QueueRebuild(ComponentIndex);
+		}
+	}
+}
+
 void URuntimeLandscapeRebuildManager::QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild)
 {
 	if (CurrentComponent)

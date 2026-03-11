@@ -304,6 +304,12 @@ void ARuntimeLandscape::GetVertexCoordinatesWithinLandscape(int32 SectionIndex, 
 	OutCoordinateResult.Y = ComponentResolution.Y * SectionCoordinates.Y + SectionVertexY;
 }
 
+int32 ARuntimeLandscape::GetComponentIndexAtCoordinate(const int32 CoordX, const int32 CoordY) const
+{
+	const int32 Result = CoordX + ComponentAmount.X * CoordY;
+	return LandscapeComponents.IsValidIndex(Result) ? Result : INDEX_NONE;
+}
+
 FVector ARuntimeLandscape::GetOriginLocation() const
 {
 	if (LandscapeComponents.IsEmpty() == false && LandscapeComponents[0])

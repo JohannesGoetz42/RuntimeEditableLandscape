@@ -70,7 +70,7 @@ struct FGroundTypeMapping
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<ULandscapeLayerInfoObject> LayerInfoObject;
-	
+
 private:
 	UPROPERTY(VisibleAnywhere)
 	/** 
@@ -131,7 +131,7 @@ class RUNTIMEEDITABLELANDSCAPE_API ARuntimeLandscape : public AActor
 	GENERATED_BODY()
 
 	friend class URuntimeLandscapeRebuildManager;
-	
+
 public:
 	// Sets default values for this actor's properties
 	ARuntimeLandscape();
@@ -241,6 +241,14 @@ public:
 	 */
 	void GetVertexCoordinatesWithinLandscape(int32 SectionIndex, int32 SectionVertexX, int32 SectionVertexY,
 	                                         FIntVector2& OutCoordinateResult) const;
+
+	/**
+	 * Get the index of a @URuntimeLandscapeComponent at the coordinate on the Component grid
+	 * @param CoordX The x coordinate
+	 * @param CoordY The y coordinate
+	 * @return the Index for the @URuntimeLandscapeComponent at the provided coordinate or INDEX_NONE if outside range
+	 */
+	int32 GetComponentIndexAtCoordinate(int32 CoordX, int32 CoordY) const;
 
 	FVector GetOriginLocation() const;
 	FBox2D GetComponentBounds(int32 SectionIndex) const;
