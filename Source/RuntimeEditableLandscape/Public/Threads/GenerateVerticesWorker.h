@@ -36,6 +36,6 @@ private:
 
 	virtual void Abandon() override
 	{
-		RebuildManager->CancelRebuild();
+		RebuildManager->HandleWorkerAbandoned();
 	}
 };

@@ -96,7 +96,7 @@ class RUNTIMEEDITABLELANDSCAPE_API URuntimeLandscapeRebuildManager : public UAct
 	friend class FGenerateAdditionalVertexDataWorker;
 
 public:
-	URuntimeLandscapeRebuildManager();
+	URuntimeLandscapeRebuildManager(const FObjectInitializer& ObjectInitializer);
 
 	UPROPERTY(BlueprintAssignable)
 	FLandscapeRebuildProgressDelegate OnRebuildProgress;
@@ -137,6 +137,12 @@ private:
 	TArray<FGenerateAdditionalVertexDataWorker*> AdditionalDataRunners;
 	std::atomic<int32> ActiveRunners;
 
+	UFUNCTION(BlueprintCallable)
+	void CancelRebuild()
+	{
+		RebuildQueue.Empty();
+	}
+
 	void Initialize()
 	{
 		if (AdditionalDataRunners.IsEmpty())
@@ -161,7 +167,7 @@ private:
 
 	void RebuildNextInQueue();
 
-	void CancelRebuild()
+	void HandleWorkerAbandoned()
 	{
 		CurrentComponent = nullptr;
 		ActiveRunners = 0;

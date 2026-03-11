@@ -8,7 +8,8 @@
 #include "Threads/GenerateAdditionalVertexDataWorker.h"
 #include "Threads/GenerateVerticesWorker.h"
 
-URuntimeLandscapeRebuildManager::URuntimeLandscapeRebuildManager() : Super()
+URuntimeLandscapeRebuildManager::URuntimeLandscapeRebuildManager(const FObjectInitializer& ObjectInitializer) : Super(
+	ObjectInitializer)
 {
 	bTickInEditor = true;
 	PrimaryComponentTick.bCanEverTick = true;

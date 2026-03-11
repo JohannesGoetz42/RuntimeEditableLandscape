@@ -130,6 +130,8 @@ class RUNTIMEEDITABLELANDSCAPE_API ARuntimeLandscape : public AActor
 {
 	GENERATED_BODY()
 
+	friend class URuntimeLandscapeRebuildManager;
+	
 public:
 	// Sets default values for this actor's properties
 	ARuntimeLandscape();
