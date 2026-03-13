@@ -115,10 +115,13 @@ void URuntimeLandscapeComponent::ApplyDataFromLayers(TArray<float>& OutHeightVal
 	OutVertexColors.Init(FColor::White, InitialHeightValues.Num());
 	for (const ULandscapeLayerComponent* Layer : AffectingLayers)
 	{
-		Layer->InitializeLayerMemories(this);
-		for (int32 i = 0; i < InitialHeightValues.Num(); i++)
+		if (Layer)
 		{
-			Layer->ApplyLayerData(i, this, OutHeightValues[i], OutVertexColors[i]);
+			Layer->InitializeLayerMemories(this);
+			for (int32 i = 0; i < InitialHeightValues.Num(); i++)
+			{
+				Layer->ApplyLayerData(i, this, OutHeightValues[i], OutVertexColors[i]);
+			}
 		}
 	}
 }
@@ -188,7 +191,7 @@ void URuntimeLandscapeComponent::InitializeSubcomponents()
 		{
 			continue;
 		}
-		
+
 		int32 i = OldChildComponents.IndexOfByPredicate(
 			[SubComponentType](const USceneComponent* Current)
 			{

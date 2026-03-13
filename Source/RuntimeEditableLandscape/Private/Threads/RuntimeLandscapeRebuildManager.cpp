@@ -25,17 +25,19 @@ void URuntimeLandscapeRebuildManager::QueueRebuild(int32 ComponentIndex)
 	}
 }
 
-void URuntimeLandscapeRebuildManager::RebuildArea(int32 MinColumn, int32 MaxColumn, int32 MinRow, int32 MaxRow)
+#if WITH_EDITORONLY_DATA
+void URuntimeLandscapeRebuildManager::RebuildArea(int32 ColumnMin, int32 ColumnMax, int32 RowMin, int32 RowMax)
 {
-	for (int32 Column = MinColumn; Column <= MaxColumn; ++Column)
+	if (Landscape)
 	{
-		for (int32 Row = MinRow; Row <= MaxRow; ++Row)
+		for (URuntimeLandscapeComponent* Component : Landscape->GetComponentsInArea(
+			     ColumnMin, ColumnMax, RowMin, RowMax))
 		{
-			int32 ComponentIndex = Landscape->GetComponentIndexAtCoordinate(Column, Row);
-			QueueRebuild(ComponentIndex);
+			QueueRebuild(Component);
 		}
 	}
 }
+#endif
 
 void URuntimeLandscapeRebuildManager::QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild)
 {

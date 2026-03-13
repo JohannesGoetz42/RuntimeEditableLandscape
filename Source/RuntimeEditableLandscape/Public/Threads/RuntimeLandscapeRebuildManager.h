@@ -101,11 +101,13 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FLandscapeRebuildProgressDelegate OnRebuildProgress;
 
+#if WITH_EDITORONLY_DATA
+	UFUNCTION(BlueprintCallable)
+	void RebuildArea(int32 ColumnMin,int32 ColumnMax,int32 RowMin,int32 RowMax);
+#endif
+	
 	UFUNCTION(BlueprintCallable)
 	void QueueRebuild(int32 ComponentIndex);
-	UFUNCTION(BlueprintCallable)
-	void RebuildArea(int32 MinColumn,int32 MaxColumn,int32 MinRow,int32 MaxRow);
-	
 	void QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild);
 	FORCEINLINE FQueuedThreadPool* GetThreadPool() const { return ThreadPool; }
 

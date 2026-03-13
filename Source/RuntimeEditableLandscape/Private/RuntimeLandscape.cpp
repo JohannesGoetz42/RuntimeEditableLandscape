@@ -574,8 +574,15 @@ void ARuntimeLandscape::Rebuild()
 			HeightValues.Add(HeightField->GetHeight(i) * HeightScale);
 		}
 
-		URuntimeLandscapeComponent* LandscapeComponent = NewObject<URuntimeLandscapeComponent>(this);
+		TSubclassOf<URuntimeLandscapeComponent> ComponentType = ComponentTypeOverride;
+		if (!ComponentType)
+		{
+			ComponentType = URuntimeLandscapeComponent::StaticClass();
+		}
+		
+		URuntimeLandscapeComponent* LandscapeComponent = NewObject<URuntimeLandscapeComponent>(this, ComponentType);
 		LandscapeComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+
 		LandscapeComponent->SetWorldLocation(LandscapeCollision->GetComponentLocation());
 		LandscapeComponent->SetMaterial(0, LandscapeMaterialInstance);
 		LandscapeComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
@@ -691,6 +698,22 @@ void ARuntimeLandscape::InitializeRenderTargets(bool bOverrideExisting)
 }
 
 #if WITH_EDITORONLY_DATA
+
+void ARuntimeLandscape::SetComponentSelected(int32 ComponentIndex, bool bNewSelected) const
+{
+	if (LandscapeComponents.IsValidIndex(ComponentIndex) && LandscapeComponents[ComponentIndex])
+	{
+		if (bNewSelected)
+		{
+			LandscapeComponents[ComponentIndex]->SetMaterial(0, SelectionHighlightMaterial);
+		}
+		else
+		{
+			LandscapeComponents[ComponentIndex]->SetMaterial(0, LandscapeMaterialInstance);
+		}
+	}
+}
+
 void ARuntimeLandscape::PreInitializeComponents()
 {
 	Super::PreInitializeComponents();
@@ -808,6 +831,22 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	}
 
 	SetUpLayerColorChannelMappings();
+}
+
+TArray<URuntimeLandscapeComponent*> ARuntimeLandscape::GetComponentsInArea(int32 ColumnMin, int32 ColumnMax,
+                                                                           int32 RowMin, int32 RowMax) const
+{
+	TArray<URuntimeLandscapeComponent*> Result;
+	for (int32 Column = ColumnMin; Column <= ColumnMax; ++Column)
+	{
+		for (int32 Row = RowMin; Row <= RowMax; ++Row)
+		{
+			int32 ComponentIndex = GetComponentIndexAtCoordinate(Column, Row);
+			Result.Add(LandscapeComponents[ComponentIndex].Get());
+		}
+	}
+
+	return Result;
 }
 
 #endif

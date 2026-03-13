@@ -96,7 +96,7 @@ protected:
 		TSet<TObjectPtr<const ULandscapeLayerComponent>>();
 	UPROPERTY()
 	TObjectPtr<ARuntimeLandscape> ParentLandscape;
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly)
 	int32 Index;
 	UPROPERTY()
 	TArray<UHierarchicalInstancedStaticMeshComponent*> GrassMeshes;

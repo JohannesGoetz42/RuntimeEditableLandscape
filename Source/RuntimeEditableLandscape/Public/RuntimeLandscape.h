@@ -275,6 +275,9 @@ public:
 	bool TryGetNormalDirectionInBox(const FBox2D& Box, float BoxYaw, FVector& OutNormalDirection) const;
 
 protected:
+	UPROPERTY(EditAnywhere)
+	/** You can use your own @URuntimeLandscapeComponent implementation and set it here */
+	TSubclassOf<URuntimeLandscapeComponent> ComponentTypeOverride;
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<URuntimeLandscapeRebuildManager> RebuildManager;
 	UPROPERTY(EditAnywhere)
@@ -305,7 +308,7 @@ protected:
 	UPROPERTY()
 	FVector2D MeshResolution = FVector2D(10, 10);
 	//TODO: Ensure MeshResolution is a multiple of ComponentAmount
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly)
 	FVector2D ComponentAmount = FVector2D(2.0f, 2.0f);
 	UPROPERTY()
 	FVector2D ComponentResolution;
@@ -394,6 +397,14 @@ public:
 	FColor DebugColor2 = FColor::Emerald;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> DebugMaterial;
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	TObjectPtr<UMaterial> SelectionHighlightMaterial;
+
+	UFUNCTION(BlueprintCallable)
+	TArray<URuntimeLandscapeComponent*> GetComponentsInArea(int32 ColumnMin, int32 ColumnMax, int32 RowMin,
+	                                                        int32 RowMax) const;
+	UFUNCTION(BlueprintCallable)
+	void SetComponentSelected(int32 ComponentIndex, bool bNewSelected) const;
 
 	void InitializeRenderTargets(bool bOverrideExisting);
 	virtual void PreInitializeComponents() override;

@@ -107,7 +107,10 @@ void ULandscapeLayerComponent::InitializeLayerMemories(const URuntimeLandscapeCo
 {
 	for (ULandscapeLayerDataBase* LayerData : Layers)
 	{
-		LayerData->InitializeLayerMemory(this, LandscapeComponent);
+		if (LayerData)
+		{
+			LayerData->InitializeLayerMemory(this, LandscapeComponent);
+		}
 	}
 }
 
