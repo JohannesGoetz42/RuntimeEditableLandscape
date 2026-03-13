@@ -177,6 +177,14 @@ void FGenerateAdditionalVertexDataWorker::GetRandomGrassScale(const FGrassVariet
 	}
 }
 
+void FGenerateAdditionalVertexDataWorker::QueueWork(int32 Y, int32 VertexStartIndex, const FVector2D& InUV1Offset)
+{
+	YCoordinate = Y;
+	StartIndex = VertexStartIndex;
+	UV1Offset = InUV1Offset;
+	RebuildManager->ThreadPool->AddQueuedWork(this);
+}
+
 void FGenerateAdditionalVertexDataWorker::DoThreadedWork()
 {
 	// skip first column of vertices (since it overlaps with last column of neighbor)
@@ -188,4 +196,9 @@ void FGenerateAdditionalVertexDataWorker::DoThreadedWork()
 	}
 
 	RebuildManager->NotifyRunnerFinished(this);
+}
+
+void FGenerateAdditionalVertexDataWorker::Abandon()
+{
+	RebuildManager->HandleWorkerAbandoned();
 }

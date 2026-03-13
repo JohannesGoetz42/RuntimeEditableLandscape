@@ -33,18 +33,8 @@ private:
 	void GetRandomGrassLocation(const FVector& VertexRelativeLocation, FVector& OutGrassLocation) const;
 	void GetRandomGrassScale(const FGrassVariety& Variety, FVector& OutScale) const;
 
-	void QueueWork(int32 Y, int32 VertexStartIndex, const FVector2D& InUV1Offset)
-	{
-		YCoordinate = Y;
-		StartIndex = VertexStartIndex;
-		UV1Offset = InUV1Offset;
-		RebuildManager->ThreadPool->AddQueuedWork(this);
-	}
+	void QueueWork(int32 Y, int32 VertexStartIndex, const FVector2D& InUV1Offset);
 
 	virtual void DoThreadedWork() override;
-
-	virtual void Abandon() override
-	{
-		RebuildManager->HandleWorkerAbandoned();
-	}
+	virtual void Abandon() override;
 };

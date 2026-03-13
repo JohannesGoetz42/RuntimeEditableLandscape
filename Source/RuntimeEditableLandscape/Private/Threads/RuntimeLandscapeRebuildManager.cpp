@@ -136,6 +136,20 @@ TArray<int32> URuntimeLandscapeRebuildManager::GenerateTriangleArray(const TSet<
 	return Result;
 }
 
+#if WITH_EDITORONLY_DATA
+void URuntimeLandscapeRebuildManager::CancelRebuild()
+{
+	RebuildQueue.Empty();
+	for (FGenerateAdditionalVertexDataWorker* AdditionalDataRunner : AdditionalDataRunners)
+	{
+		AdditionalDataRunner->Abandon();
+	}
+
+	AdditionalDataRunners.Empty();
+	CurrentComponent = nullptr;
+}
+#endif
+
 void URuntimeLandscapeRebuildManager::StartRebuild()
 {
 	Initialize();

@@ -5,6 +5,7 @@
 
 #include "RuntimeLandscape.h"
 #include "RuntimeLandscapeComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/SphereComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -119,6 +120,21 @@ void ULandscapeLayerComponent::UpdateShape()
 	if (!BoundsComponent && !GetOwner())
 	{
 		return;
+	}
+
+	if (const UBoxComponent* BoxBounds = Cast<UBoxComponent>(BoundsComponent))
+	{
+		Shape = ELayerShape::HS_Box;
+
+		// use the unscaled extent, since scale will be applied below
+		Extent = BoxBounds->GetUnscaledBoxExtent();
+	}
+	else if (const USphereComponent* SphereBounds = Cast<USphereComponent>(BoundsComponent))
+	{
+		Shape = ELayerShape::HS_Round;
+
+		// use the unscaled radius, since scale will be applied below
+		Radius = SphereBounds->GetUnscaledSphereRadius();
 	}
 
 	const FVector Origin = BoundsComponent ? BoundsComponent->GetComponentLocation() : GetOwner()->GetActorLocation();

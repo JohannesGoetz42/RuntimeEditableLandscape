@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GenerateAdditionalVertexDataWorker.h"
 #include "LandscapeGrassType.h"
 #include "RuntimeLandscape.h"
 #include "Components/ActorComponent.h"
@@ -103,9 +104,9 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	UFUNCTION(BlueprintCallable)
-	void RebuildArea(int32 ColumnMin,int32 ColumnMax,int32 RowMin,int32 RowMax);
+	void RebuildArea(int32 ColumnMin, int32 ColumnMax, int32 RowMin, int32 RowMax);
 #endif
-	
+
 	UFUNCTION(BlueprintCallable)
 	void QueueRebuild(int32 ComponentIndex);
 	void QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild);
@@ -125,6 +126,11 @@ public:
 
 	TArray<int32> GenerateTriangleArray(const TSet<int32>* HoleIndices) const;
 
+#if WITH_EDITORONLY_DATA
+	UFUNCTION(BlueprintCallable)
+	void CancelRebuild();
+#endif
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<URuntimeLandscapeComponent*> RebuildQueue;
@@ -143,12 +149,6 @@ private:
 	FGenerateVerticesWorker* VertexRunner;
 	TArray<FGenerateAdditionalVertexDataWorker*> AdditionalDataRunners;
 	std::atomic<int32> ActiveRunners;
-
-	UFUNCTION(BlueprintCallable)
-	void CancelRebuild()
-	{
-		RebuildQueue.Empty();
-	}
 
 	void Initialize()
 	{
