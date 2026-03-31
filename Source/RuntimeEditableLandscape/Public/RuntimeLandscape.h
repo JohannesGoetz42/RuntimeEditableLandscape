@@ -220,6 +220,9 @@ public:
 	 */
 	TArray<URuntimeLandscapeComponent*> GetComponentsInArea(const FBox2D& Area) const;
 
+	UFUNCTION(BlueprintCallable)
+	TArray<URuntimeLandscapeComponent*> GetComponentsInArea(int32 ColumnMin, int32 ColumnMax, int32 RowMin,
+															int32 RowMax) const;
 	/**
 	 * Get the grid coordinates of the specified component
 	 * @param SectionIndex				The id of the component
@@ -338,17 +341,23 @@ protected:
 	/** The dynamic material instance for the landscape */
 	TObjectPtr<UMaterialInstanceDynamic> LandscapeMaterialInstance;
 	bool bIsRebuilding;
+	UPROPERTY()
+	TArray<ULandscapeLayerInfoObject*> PaintLayers;
 
 	UFUNCTION(BlueprintCallable)
 	void InitializeFromLandscape();
 	UFUNCTION(BlueprintCallable)
 	void BakeLandscapeLayers();
+	UFUNCTION(BlueprintCallable)
+	void SetComponentSelected(int32 ComponentIndex, bool bNewSelected) const;
 
 	UFUNCTION()
 	void HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActor);
+
 	UFUNCTION()
 	void BakeLandscapeLayersAndDestroyLandscape();
-
+	
+	void InitializeRenderTargets(bool bOverrideExisting);
 	/**
 	 * Updates the vertex layer weights for the provided ground type layer
 	 */
@@ -399,14 +408,7 @@ public:
 	TObjectPtr<UMaterial> DebugMaterial;
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	TObjectPtr<UMaterial> SelectionHighlightMaterial;
-
-	UFUNCTION(BlueprintCallable)
-	TArray<URuntimeLandscapeComponent*> GetComponentsInArea(int32 ColumnMin, int32 ColumnMax, int32 RowMin,
-	                                                        int32 RowMax) const;
-	UFUNCTION(BlueprintCallable)
-	void SetComponentSelected(int32 ComponentIndex, bool bNewSelected) const;
-
-	void InitializeRenderTargets(bool bOverrideExisting);
+	
 	virtual void PreInitializeComponents() override;
 	void SetUpLayerColorChannelMappings();
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -417,6 +419,7 @@ public:
 		Super::PreSave(SaveContext);
 	}
 
+protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override
 	{
 		if (EndPlayReason == EEndPlayReason::Type::EndPlayInEditor)

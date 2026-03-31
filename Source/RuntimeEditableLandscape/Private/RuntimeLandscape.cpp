@@ -153,21 +153,6 @@ void ARuntimeLandscape::HandleLandscapeLayerOwnerDestroyed(AActor* DestroyedActo
 	}
 }
 
-void ARuntimeLandscape::BakeLandscapeLayersAndDestroyLandscape()
-{
-	if (ParentLandscape)
-	{
-		InitializeRenderTargets(true);
-		BakeLandscapeLayers();
-
-		// ParentLandscape->Destroy();
-		ParentLandscape = nullptr;
-	}
-
-	OnLandscapeInitialized.Broadcast(this);
-	OnLandscapeInitialized.Clear(); // won't be needed anymore, free up the memory
-}
-
 void ARuntimeLandscape::PostLoad()
 {
 	Super::PostLoad();
@@ -500,8 +485,10 @@ void ARuntimeLandscape::BakeLandscapeLayers()
 				LayerSet.RenderTarget->SizeX = MeshResolution.X + 1;
 				LayerSet.RenderTarget->SizeY = MeshResolution.Y + 1;
 
-				TArray<ULandscapeLayerInfoObject*> PaintLayers;
+#if WITH_EDITORONLY_DATA
 				ParentLandscape->GetUsedPaintLayers(0, PaintLayers);
+#endif
+
 				TArray<FName> BakedLayerNames;
 				for (const ULandscapeLayerInfoObject* PaintLayer : PaintLayers)
 				{
@@ -579,7 +566,7 @@ void ARuntimeLandscape::Rebuild()
 		{
 			ComponentType = URuntimeLandscapeComponent::StaticClass();
 		}
-		
+
 		URuntimeLandscapeComponent* LandscapeComponent = NewObject<URuntimeLandscapeComponent>(this, ComponentType);
 		LandscapeComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
 
@@ -655,6 +642,39 @@ void ARuntimeLandscape::InitializeFromLandscape()
 #endif
 }
 
+void ARuntimeLandscape::SetComponentSelected(int32 ComponentIndex, bool bNewSelected) const
+{
+#if WITH_EDITORONLY_DATA
+	if (LandscapeComponents.IsValidIndex(ComponentIndex) && LandscapeComponents[ComponentIndex])
+	{
+		if (bNewSelected)
+		{
+			LandscapeComponents[ComponentIndex]->SetMaterial(0, SelectionHighlightMaterial);
+		}
+		else
+		{
+			LandscapeComponents[ComponentIndex]->SetMaterial(0, LandscapeMaterialInstance);
+		}
+	}
+#endif
+}
+
+void ARuntimeLandscape::BakeLandscapeLayersAndDestroyLandscape()
+{
+	if (ParentLandscape)
+	{
+		InitializeRenderTargets(true);
+		BakeLandscapeLayers();
+
+		// ParentLandscape->Destroy();
+		ParentLandscape = nullptr;
+	}
+
+	OnLandscapeInitialized.Broadcast(this);
+	OnLandscapeInitialized.Clear(); // won't be needed anymore, free up the memory
+}
+
+
 void ARuntimeLandscape::InitializeRenderTargets(bool bOverrideExisting)
 {
 	if (!IsValid(LandscapeMaterialInstance))
@@ -697,22 +717,23 @@ void ARuntimeLandscape::InitializeRenderTargets(bool bOverrideExisting)
 	}
 }
 
-#if WITH_EDITORONLY_DATA
-
-void ARuntimeLandscape::SetComponentSelected(int32 ComponentIndex, bool bNewSelected) const
+TArray<URuntimeLandscapeComponent*> ARuntimeLandscape::GetComponentsInArea(int32 ColumnMin, int32 ColumnMax,
+																		   int32 RowMin, int32 RowMax) const
 {
-	if (LandscapeComponents.IsValidIndex(ComponentIndex) && LandscapeComponents[ComponentIndex])
+	TArray<URuntimeLandscapeComponent*> Result;
+	for (int32 Column = ColumnMin; Column <= ColumnMax; ++Column)
 	{
-		if (bNewSelected)
+		for (int32 Row = RowMin; Row <= RowMax; ++Row)
 		{
-			LandscapeComponents[ComponentIndex]->SetMaterial(0, SelectionHighlightMaterial);
-		}
-		else
-		{
-			LandscapeComponents[ComponentIndex]->SetMaterial(0, LandscapeMaterialInstance);
+			int32 ComponentIndex = GetComponentIndexAtCoordinate(Column, Row);
+			Result.Add(LandscapeComponents[ComponentIndex].Get());
 		}
 	}
+
+	return Result;
 }
+
+#if WITH_EDITORONLY_DATA
 
 void ARuntimeLandscape::PreInitializeComponents()
 {
@@ -831,22 +852,6 @@ void ARuntimeLandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	}
 
 	SetUpLayerColorChannelMappings();
-}
-
-TArray<URuntimeLandscapeComponent*> ARuntimeLandscape::GetComponentsInArea(int32 ColumnMin, int32 ColumnMax,
-                                                                           int32 RowMin, int32 RowMax) const
-{
-	TArray<URuntimeLandscapeComponent*> Result;
-	for (int32 Column = ColumnMin; Column <= ColumnMax; ++Column)
-	{
-		for (int32 Row = RowMin; Row <= RowMax; ++Row)
-		{
-			int32 ComponentIndex = GetComponentIndexAtCoordinate(Column, Row);
-			Result.Add(LandscapeComponents[ComponentIndex].Get());
-		}
-	}
-
-	return Result;
 }
 
 #endif

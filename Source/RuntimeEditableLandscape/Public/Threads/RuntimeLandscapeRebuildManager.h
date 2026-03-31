@@ -102,13 +102,13 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FLandscapeRebuildProgressDelegate OnRebuildProgress;
 
-#if WITH_EDITORONLY_DATA
 	UFUNCTION(BlueprintCallable)
 	void RebuildArea(int32 ColumnMin, int32 ColumnMax, int32 RowMin, int32 RowMax);
-#endif
-
 	UFUNCTION(BlueprintCallable)
 	void QueueRebuild(int32 ComponentIndex);
+	UFUNCTION(BlueprintCallable)
+	void CancelRebuild();
+	
 	void QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild);
 	FORCEINLINE FQueuedThreadPool* GetThreadPool() const { return ThreadPool; }
 
@@ -126,14 +126,13 @@ public:
 
 	TArray<int32> GenerateTriangleArray(const TSet<int32>* HoleIndices) const;
 
-#if WITH_EDITORONLY_DATA
-	UFUNCTION(BlueprintCallable)
-	void CancelRebuild();
-#endif
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<URuntimeLandscapeComponent*> RebuildQueue;
+
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType,
+							   FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
 	UPROPERTY(VisibleAnywhere)
@@ -181,7 +180,4 @@ private:
 		SetComponentTickEnabled(false);
 		OnRebuildProgress.Broadcast(this);
 	}
-
-	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType,
-	                           FActorComponentTickFunction* ThisTickFunction) override;
 };

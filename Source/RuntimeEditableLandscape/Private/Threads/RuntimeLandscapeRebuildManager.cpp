@@ -25,7 +25,6 @@ void URuntimeLandscapeRebuildManager::QueueRebuild(int32 ComponentIndex)
 	}
 }
 
-#if WITH_EDITORONLY_DATA
 void URuntimeLandscapeRebuildManager::RebuildArea(int32 ColumnMin, int32 ColumnMax, int32 RowMin, int32 RowMax)
 {
 	if (Landscape)
@@ -37,7 +36,6 @@ void URuntimeLandscapeRebuildManager::RebuildArea(int32 ColumnMin, int32 ColumnM
 		}
 	}
 }
-#endif
 
 void URuntimeLandscapeRebuildManager::QueueRebuild(URuntimeLandscapeComponent* ComponentToRebuild)
 {
@@ -136,7 +134,6 @@ TArray<int32> URuntimeLandscapeRebuildManager::GenerateTriangleArray(const TSet<
 	return Result;
 }
 
-#if WITH_EDITORONLY_DATA
 void URuntimeLandscapeRebuildManager::CancelRebuild()
 {
 	RebuildQueue.Empty();
@@ -148,7 +145,6 @@ void URuntimeLandscapeRebuildManager::CancelRebuild()
 	AdditionalDataRunners.Empty();
 	CurrentComponent = nullptr;
 }
-#endif
 
 void URuntimeLandscapeRebuildManager::StartRebuild()
 {
