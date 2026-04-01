@@ -486,30 +486,49 @@ void ARuntimeLandscape::BakeLandscapeLayers()
 				LayerSet.RenderTarget->SizeY = MeshResolution.Y + 1;
 
 #if WITH_EDITORONLY_DATA
+
+				TArray<ULandscapeLayerInfoObject*> PaintLayers;
 				ParentLandscape->GetUsedPaintLayers(0, PaintLayers);
-#endif
 
-				TArray<FName> BakedLayerNames;
-				for (const ULandscapeLayerInfoObject* PaintLayer : PaintLayers)
+				// match ground type order with parent landscape paint layer order
+				TArray<FGroundTypeMapping> OrderedGroundTypeMappings;
+				OrderedGroundTypeMappings.AddZeroed(LayerSet.GroundTypeMappings.Num());
+
+				for (int32 Index = PaintLayers.Num() - 1; Index >= 0; --Index)
 				{
-					bool bHasMatchingMapping = LayerSet.GroundTypeMappings.ContainsByPredicate(
-						[PaintLayer](const FGroundTypeMapping& Current)
+					for (const FGroundTypeMapping& GroundType : LayerSet.GroundTypeMappings)
+					{
+						if (GroundType.LayerInfoObject == PaintLayers[Index])
 						{
-							return PaintLayer == Current.LayerInfoObject;
-						});
-
-					if (bHasMatchingMapping)
-					{
-						BakedLayerNames.Add(PaintLayer->GetLayerName());
-					}
-					else
-					{
-						UE_LOG(LogTemp, Warning, TEXT("Could not bake Landscape layer %s -> no matching LayerSet"),
-						       *PaintLayer->LayerName.ToString())
+							OrderedGroundTypeMappings[Index] = GroundType;
+							PaintLayers.RemoveAt(Index);
+							break;;
+						}
 					}
 				}
 
+				LayerSet.GroundTypeMappings = OrderedGroundTypeMappings;
 
+				for (ULandscapeLayerInfoObject* PaintLayer : PaintLayers)
+				{
+					UE_LOG(RuntimeEditableLandscape, Warning,
+					       TEXT("Missing ground type for paint layer on Parent Landscape: %s"),
+					       *PaintLayer->GetLayerName().ToString());
+				}
+
+#endif
+
+				TArray<FName> BakedLayerNames;
+				BakedLayerNames.Reserve(LayerSet.GroundTypeMappings.Num());
+
+				for (const FGroundTypeMapping& GroundType : LayerSet.GroundTypeMappings)
+				{
+					if (GroundType.LayerInfoObject)
+					{
+						BakedLayerNames.Add(GroundType.LayerInfoObject->GetLayerName());
+					}
+				}
+				
 				if (!BakedLayerNames.IsEmpty()
 					&& ensureAlways(ParentLandscape->RenderWeightmaps(GetActorTransform(), Box2D, BakedLayerNames,
 						LayerSet.RenderTarget)))
@@ -666,7 +685,7 @@ void ARuntimeLandscape::BakeLandscapeLayersAndDestroyLandscape()
 		InitializeRenderTargets(true);
 		BakeLandscapeLayers();
 
-		// ParentLandscape->Destroy();
+		ParentLandscape->SetActorHiddenInGame(true);
 		ParentLandscape = nullptr;
 	}
 
@@ -718,7 +737,7 @@ void ARuntimeLandscape::InitializeRenderTargets(bool bOverrideExisting)
 }
 
 TArray<URuntimeLandscapeComponent*> ARuntimeLandscape::GetComponentsInArea(int32 ColumnMin, int32 ColumnMax,
-																		   int32 RowMin, int32 RowMax) const
+                                                                           int32 RowMin, int32 RowMax) const
 {
 	TArray<URuntimeLandscapeComponent*> Result;
 	for (int32 Column = ColumnMin; Column <= ColumnMax; ++Column)

@@ -341,8 +341,6 @@ protected:
 	/** The dynamic material instance for the landscape */
 	TObjectPtr<UMaterialInstanceDynamic> LandscapeMaterialInstance;
 	bool bIsRebuilding;
-	UPROPERTY()
-	TArray<ULandscapeLayerInfoObject*> PaintLayers;
 
 	UFUNCTION(BlueprintCallable)
 	void InitializeFromLandscape();
